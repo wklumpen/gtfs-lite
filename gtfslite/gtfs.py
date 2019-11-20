@@ -55,33 +55,49 @@ class GTFS:
             summary['first_date'] = self.calendar.start_date.min()
             summary['last_date'] = self.calendar.end_date.max()
 
-        return summary
+        return summary.iloc[0]
 
     def day_trips(self, datestring):
         # Gets all trips on a specified day, counting for exceptions
         # First, get all standard trips that run on that particular day of the week
         dayname = datetime.datetime.strptime(str(datestring), "%Y%m%d").strftime("%A").lower()
         if self.calendar is not None:
-            service_ids = self.calendar[(self.calendar[dayname] == 1) & (self.calendar.start_date <= int(datestring)) & (self.calendar.end_date) >= int(datestring)].service_id
+            service_ids = self.calendar[(self.calendar[dayname] == 1) & (self.calendar.start_date <= int(datestring)) & (self.calendar.end_date >= int(datestring))].service_id
             service_ids = service_ids.append(self.calendar_dates[(self.calendar_dates.date == int(datestring)) & (self.calendar_dates.exception_type == 1)].service_id)
             service_ids = service_ids[~service_ids.isin(self.calendar_dates[(self.calendar_dates.date == int(datestring)) & (self.calendar_dates.exception_type == 2)].service_id)]
         else:
             service_ids = service_ids.append(self.calendar_dates[(self.calendar_dates.date == int(datestring)) & (self.calendar_dates.exception_type == 1)].service_id)
-        
         return self.trips[self.trips.service_id.isin(service_ids)]
-    
-    def weekday_trips(self, week_of):
-        # TODO: May only be a standard service
-        # Start by grabbing the regular service ID for those that have Monday-Friday trips
-        service_ids = self.calendar[(self.calendar.monday > 0) | 
-                    (self.calendar.tuesday > 0) | 
-                    (self.calendar.wednesday > 0) |
-                    (self.calendar.thursday > 0) | 
-                    (self.calendar.friday > 0)].service_id
 
-        # Now add in the added service
-        if self.calendar_dates is not None:
-            service_ids = service_ids.append(self.calendar_dates[(pd.to_datetime(self.calendar_dates.date, format="%Y%m%d").dt.weekday < 5) 
-                    & (self.calendar_dates.exception_type == 1)].service_id)
+    def stop_summary(self, datestring, stop_id):
+        # Create a summary of stops for a given stop_id
 
-        return self.trips[self.trips.service_id.isin(service_ids)]
+        trips = self.day_trips(datestring)
+        stop_times = self.stop_times[self.stop_times.trip_id.isin(trips.trip_id) & (self.stop_times.stop_id == stop_id)]
+        summary = self.stops[self.stops.stop_id == stop_id].iloc[0]
+        summary['total_visits'] = len(stop_times.index)
+        summary['first_arrival'] = stop_times.arrival_time.min()
+        summary['last_departure'] = stop_times.departure_time.max()
+        summary['service_time'] = (int(summary.last_departure.split(":")[0]) + int(summary.last_departure.split(":")[1])/60.0 + int(summary.last_departure.split(":")[2])/3600.0) - (int(stop_times.arrival_time.min().split(":")[0]) + int(stop_times.arrival_time.min().split(":")[1])/60.0 + int(stop_times.arrival_time.min().split(":")[2])/3600.0)
+        summary['average_headway'] = (summary.service_time/summary.total_visits)*60
+        return summary
+
+    def route_summary(self, datestring, route_id):
+        # Create a route summary
+
+        trips = self.day_trips(datestring)
+        trips = trips[trips.route_id == route_id]
+        stop_times = self.stop_times[self.stop_times.trip_id.isin(trips.trip_id)]
+
+        summary = pd.Series()
+        summary['total_trips'] = len(trips.index)
+        summary['first_departure'] = stop_times.departure_time.min()
+        summary['last_arrival'] = stop_times.arrival_time.max()
+        summary['service_time'] = (int(summary.last_arrival.split(":")[0]) + int(summary.last_arrival.split(":")[1])/60.0 + int(summary.last_arrival.split(":")[2])/3600.0) - (int(summary.first_departure.split(":")[0]) + int(summary.first_departure.split(":")[1])/60.0 + int(summary.first_departure.split(":")[2])/3600.0)
+        stop_id = stop_times.iloc[0].stop_id
+        min_dep = stop_times[stop_times.stop_id == stop_id].departure_time.min()
+        max_arr = stop_times[stop_times.stop_id == stop_id].arrival_time.max()
+        visits = stop_times[stop_times.stop_id == stop_id].trip_id.count()
+        route_headway = int(max_arr.split(":")[0]) + int(max_arr.split(":")[1])/60.0 + int(max_arr.split(":")[2])/3600.0 - (int(min_dep.split(":")[0]) + int(min_dep.split(":")[1])/60.0 + int(min_dep.split(":")[2])/3600.0)
+        summary['average_headway'] = 60*route_headway/visits
+        return summary
