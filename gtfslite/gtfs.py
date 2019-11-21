@@ -121,8 +121,9 @@ class GTFS:
     
     def routes_summary(self, datestring):
         # Get all the routes that run in that date
-        # Start with the services ID
         trips = self.day_trips(datestring)
+        if "direction_id" in trips.columns: 
+            trips = trips[trips.direction_id == 0]
         stop_times = self.stop_times[self.stop_times.trip_id.isin(trips.trip_id)]
         stop_times = pd.merge(stop_times, trips, on="trip_id", how="left")
         route_trips = trips[["route_id", "trip_id"]].groupby("route_id", as_index=False).count()
@@ -135,5 +136,7 @@ class GTFS:
             (summary.departure_time.str.split(":", -1, expand=True)[0].astype(int) + summary.departure_time.str.split(":", -1, expand=True)[1].astype(int)/60.0 + summary.departure_time.str.split(":", -1, expand=True)[2].astype(int)/3600.0)
         summary['average_headway'] = 60*summary.service_time/summary.trips
         summary["last_arrival"] = summary.arrival_time 
-        summary["first_departure"] = summary.departure_time     
-        return summary[["route_id", "trips", "first_departure", "last_arrival", "average_headway"]]
+        summary["first_departure"] = summary.departure_time
+        summary = summary[["route_id", "trips", "first_departure", "last_arrival", "average_headway"]]
+        summary = pd.merge(self.routes, summary, on="route_id", how="inner")
+        return summary
