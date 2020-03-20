@@ -6,8 +6,15 @@ import pandas as pd
 class DateNotValidException(Exception):
     pass
 
+class FeedNotValidException(Exception):
+    pass
+
 class GTFS:
-    def __init__(self, agency, stops, routes, trips, stop_times, calendar=None, calendar_dates=None, fare_attributes=None, fare_rules=None, shapes=None):
+    def __init__(self, agency, stops, routes, trips, stop_times, 
+        calendar=None, calendar_dates=None, fare_attributes=None, 
+        fare_rules=None, shapes=None, frequencies=None, transfers=None, 
+        pathways=None, levels=None, translations=None, feed_info=None, 
+        attributions=None):
         # Mandatory Files
         self.agency = agency
         self.stops = stops 
@@ -19,47 +26,252 @@ class GTFS:
         self.calendar = calendar
         self.calendar_dates = calendar_dates
 
+        # Pairwise Mandatory Files
+        self.translations = translations
+        self.feed_into = feed_info
+
         # Optional Files
         self.fare_attributes = fare_attributes
         self.fare_rules = fare_rules
         self.shapes = shapes
+        self.frequencies = frequencies
+        self.transfers = transfers
+        self.pathways = pathways
+        self.levels = levels
+        self.attributions = attributions
 
 
     @staticmethod
     def load_zip(filepath):
         with ZipFile(filepath, 'r') as zip_file:
-            # Read into pandas file?
-            agency = pd.read_csv(zip_file.open("agency.txt"))
-            stops = pd.read_csv(zip_file.open("stops.txt"))
-            routes = pd.read_csv(zip_file.open("routes.txt"))
-            trips = pd.read_csv(zip_file.open("trips.txt"))
-            stop_times = pd.read_csv(zip_file.open("stop_times.txt"))
+            # Create pandas objects of the entire feed
+            agency = pd.read_csv(
+                zip_file.open("agency.txt"),
+                dtype={
+                    'agency_id': str, 'agency_name': str, 'agency_url': str,
+                    'agency_timezone': str, 'agency_lang': str,
+                    'agency_phone': str, 'agency_fare_url': str,
+                    'agency_email': str
+                }
+            )
+            stops = pd.read_csv(
+                zip_file.open("stops.txt"),
+                dtype={
+                    'stop_id': str, 'stop_code': str, 'stop_name': str,
+                    'stop_desc': str, 'stop_lat': float, 'stop_lon': float,
+                    'zone_id': str, 'stop_url': str, 'location_type': int,
+                    'parent_station': str, 'stop_timezone': str,
+                    'wheelchair_boarding': 'Int64', 'level_id': str,
+                    'platform_code': str
+                }
+            )
+            routes = pd.read_csv(
+                zip_file.open("routes.txt"),
+                dtype={
+                    'route_id': str, 'agency_id': str, 'route_short_name': str,
+                    'route_long_name': str, 'route_desc': str,
+                    'route_type': int, 'route_url': str, 'route_color': str,
+                    'route_text_color': str, 'route_short_order': int
+                }
+            )
+            trips = pd.read_csv(
+                zip_file.open("trips.txt"),
+                dtype={
+                    'route_id': str, 'service_id': str, 'trip_id': str,
+                    'trip_headsign': str, 'trip_short_name': str,
+                    'direction_id': int, 'block_id': str, 'shape_id': str,
+                    'wheelchair_accessible': 'Int64', 'bikes_allowed': 'Int64'
+                })
+            stop_times = pd.read_csv(
+                zip_file.open("stop_times.txt"),
+                dtype={
+                    'trip_id': str, 'arrival_time': str, 'departure_time': str,
+                    'stop_id': str, 'stop_sequence': int, 'stop_headsign': str,
+                    'pickup_type': 'Int64', 'drop_off_type': 'Int64', 
+                    'shape_dist_traveled': float, 'timepoint': 'Int64'
+                }
+            )
+
             if "calendar.txt" in zip_file.namelist():
-                calendar = pd.read_csv(zip_file.open("calendar.txt"))
+                calendar = pd.read_csv(
+                    zip_file.open("calendar.txt"), 
+                    dtype={
+                        'service_id': str,'monday': bool, 'tuesday': bool,
+                        'wednesday': bool, 'thursday': bool, 'friday': bool,
+                        'saturday': bool, 'sunday': bool, 'start_date': str,
+                        'end_date': str
+                    },
+                    parse_dates=['start_date', 'end_date']
+                )
+
             else:
                 calendar = None
+
             if "calendar_dates.txt" in zip_file.namelist():
-                calendar_dates = pd.read_csv(zip_file.open("calendar_dates.txt"))
+                calendar_dates = pd.read_csv(
+                    zip_file.open("calendar_dates.txt"),
+                    dtype={
+                        'service_id': str, 'date': str, 'exception_type': int
+                    },
+                    parse_dates=['date']
+                )
             else:
                 calendar_dates = None
-        
-        return GTFS(agency, stops, routes, trips, stop_times, calendar=calendar, calendar_dates=calendar_dates)
+
+            if "fare_attributes.txt" in zip_file.namelist():
+                fare_attributes = pd.read_csv(
+                    zip_file.open("fare_attributes.txt"),
+                    dtype={
+                        'fare_id': str, 'price': float, 'currency_type': str,
+                        'payment_method': int, 'transfers': 'Int64',
+                        'agency_id': str, 'transfer_duration': int
+                    }
+                )
+            else:
+                fare_attributes = None
+
+            if "fare_rules.txt" in zip_file.namelist():
+                fare_rules = pd.read_csv(
+                    zip_file.open("fare_rules.txt"),
+                    dtype={
+                        'fare_id': str, 'route_id': str, 'origin_id': str,
+                        'destination_id': str, 'contains_id': str
+                    }    
+                )
+            else:
+                fare_rules = None
+            
+            if "shapes.txt" in zip_file.namelist():
+                shapes = pd.read_csv(
+                    zip_file.open("shapes.txt"),
+                    dtype={
+                        'shape_id': str, 'shape_pt_lat': float,
+                        'shape_pt_lon': float, 'shape_pt_sequence': int,
+                        'shape_dist_traveled': float
+                    }
+                )
+            else:
+                shapes = None
+
+            if "frequencies.txt" in zip_file.namelist():
+                frequencies = pd.read_csv(
+                    zip_file.open("frequencies.txt"),
+                    dtype={
+                        'trip_id': str, 'start_time': str, 'end_time': str,
+                        'headway_secs': int, 'exact_times': int
+                    },
+                    parse_dates=['start_time', 'end_time']
+                )
+            else:
+                frequencies = None
+
+            if "transfers.txt" in zip_file.namelist():
+                transfers = pd.read_csv(
+                    zip_file.open("transfers.txt"),
+                    dtype={
+                        'from_stop_id': str, 'to_stop_id': str,
+                        'transfer_type': 'Int64', 'min_transfer_time': int
+                    }
+                )
+            else:
+                transfers = None
+
+            if "pathways.txt" in zip_file.namelist():
+                pathways = pd.read_csv(
+                    zip_file.open("pathways.txt"),
+                    dtype={
+                        'pathway_id': str, 'from_stop_id': str, 
+                        'to_stop_id': str, 'pathway_mode': int,
+                        'is_bidirectional': str, 'length': float,
+                        'traversal_time': int, 'stair_count': int,
+                        'max_slope': float, 'min_width': float,
+                        'signposted_as': str, 'reverse_signposted_as': str
+                    }
+                )
+            else:
+                pathways = None
+            
+            if "levels.txt" in zip_file.namelist():
+                levels = pd.read_csv(
+                    zip_file.open("levels.txt"),
+                    dtype={
+                        'level_id': str, 'level_index': float,
+                        'level_name': str
+                    }
+                )
+            else:
+                levels = None
+
+            if "translations.txt" in zip_file.namelist():
+                translations = pd.read_csv(
+                    zip_file.open("translations.txt"),
+                    dtype={
+                        'table_name': str, 'field_name': str, 'language': str,
+                        'translation': str, 'record_id': str,
+                        'record_sub_id': str, 'field_value': str
+                    }
+                )
+                feed_info = pd.read_csv(
+                    zip_file.open("feed_info.txt"),
+                    dtype={
+                        'feed_publisher_name': str, 'feed_publisher_url': str,
+                        'feed_lang': str, 'default_lang': str,
+                        'feed_start_date': str, 'feed_end_date': str,
+                        'feed_version': str, 'feed_contact_email': str,
+                        'feed_contact_url': str
+                    }
+                )
+            elif "feed_info.txt" in zip_file.namelist():
+                feed_info = pd.read_csv(
+                    zip_file.open("feed_info.txt"),
+                    dtype={
+                        'feed_publisher_name': str, 'feed_publisher_url': str,
+                        'feed_lang': str, 'default_lang': str,
+                        'feed_start_date': str, 'feed_end_date': str,
+                        'feed_version': str, 'feed_contact_email': str,
+                        'feed_contact_url': str
+                    }   
+                )
+                translations=None
+            else:
+                translations = None
+                feed_info = None
+
+            if "attributions.txt" in zip_file.namelist():
+                attributions = pd.read_csv(
+                    zip_file.open("attributions.txt"),
+                    dtype={
+                        'attribution_id': str, 'agency_id': str, 
+                        'route_id': str, 'trip_id': str,
+                    }
+                )
+            else:
+                attributions = None
+
+        return GTFS(agency, stops, routes, trips, stop_times, 
+            calendar=calendar, calendar_dates=calendar_dates, 
+            fare_attributes=fare_attributes, fare_rules=fare_rules, 
+            shapes=shapes, frequencies=frequencies, transfers=transfers,
+            pathways=pathways, levels=levels, translations=translations, 
+            feed_info=feed_info, attributions=attributions)
     
     def summary(self):
         # Return a summary of the data in a pandas dataframe
         # TODO: Specify column data types for faster loading
         summary = pd.Series()
         summary['agencies'] = self.agency.agency_name.tolist()
-        summary['total_stops'] = len(self.stops.index)
-        summary['total_routes'] = len(self.routes.index)
-        summary['total_trips'] = len(self.trips.index)
-        summary['total_stops_made'] = len(self.stop_times.index)
+        summary['total_stops'] = self.stops.shape[0]
+        summary['total_routes'] = self.routes.shape[0]
+        summary['total_trips'] = self.trips.shape[0]
+        summary['total_stops_made'] = self.stop_times.shape[0]
         if self.calendar is not None:
             summary['first_date'] = self.calendar.start_date.min()
             summary['last_date'] = self.calendar.end_date.max()
         else:
             summary['first_date'] = self.calendar_dates.date.min()
             summary['last_date'] = self.calendar_dates.date.max()
+        if self.shapes is not None:
+            summary['total_shapes'] = self.shapes.shape[0]
 
         return summary
 
