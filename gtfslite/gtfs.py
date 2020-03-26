@@ -257,7 +257,6 @@ class GTFS:
     
     def summary(self):
         # Return a summary of the data in a pandas dataframe
-        # TODO: Specify column data types for faster loading
         summary = pd.Series()
         summary['agencies'] = self.agency.agency_name.tolist()
         summary['total_stops'] = self.stops.shape[0]
