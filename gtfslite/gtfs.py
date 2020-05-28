@@ -10,11 +10,26 @@ class FeedNotValidException(Exception):
     pass
 
 class GTFS:
+    """
+    A class to represent and manage a GTFS feed.
+    ...
+    
+    GTFS holds, as Pandas data frames, the various datasets as defined by the
+    GTFS static protocol (http://gtfs.org/reference/static). Optional datasets
+    are set to `None` if data is not passed.
+    """
     def __init__(self, agency, stops, routes, trips, stop_times, 
         calendar=None, calendar_dates=None, fare_attributes=None, 
         fare_rules=None, shapes=None, frequencies=None, transfers=None, 
         pathways=None, levels=None, translations=None, feed_info=None, 
         attributions=None):
+        """Constructs and validates the datasets for the GTFS object.
+        
+        All parameters should be valid Pandas DataFrame objects that follow
+        the structure corresponding to the dataset as defined by the GTFS
+        standard (http://gtfs.org/reference/static).
+        """
+
         # Mandatory Files
         self.agency = agency
         self.stops = stops 
@@ -22,13 +37,12 @@ class GTFS:
         self.trips = trips 
         self.stop_times = stop_times
 
-        # Conditionally Mandatory Files
+        # Pairwise Mandatory Files
         self.calendar = calendar
         self.calendar_dates = calendar_dates
 
-        # Pairwise Mandatory Files
-        self.translations = translations
-        self.feed_into = feed_info
+        if self.calendar is None and self.calendar_dates is None:
+            raise FeedNotValidException("One of calendar or calendar_dates is required.")
 
         # Optional Files
         self.fare_attributes = fare_attributes
@@ -39,10 +53,20 @@ class GTFS:
         self.pathways = pathways
         self.levels = levels
         self.attributions = attributions
+        self.translations = translations
+        self.feed_into = feed_info
 
 
     @staticmethod
     def load_zip(filepath):
+        """Load a zipped GTFS feed
+
+        Parameters:
+            filepath (str): the filepath of the zipped GTFS feed
+        
+        Returns:
+            A GTFS object with loaded data.
+        """
         with ZipFile(filepath, 'r') as zip_file:
             # Create pandas objects of the entire feed
             agency = pd.read_csv(
@@ -91,11 +115,6 @@ class GTFS:
                     'shape_dist_traveled': float, 'timepoint': 'Int64'
                 },
             )
-            # v = stop_times.arrival_time.str.split(':', expand=True).astype(int)
-            # stop_times['arrival_time'] = pd.to_timedelta(v[0], unit='h') + pd.to_timedelta(v[1], unit='m') + pd.to_timedelta(v[2], unit='s')
-
-            # v = stop_times.departure_time.str.split(':', expand=True).astype(int)
-            # stop_times['departure_time'] = pd.to_timedelta(v[0], unit='h') + pd.to_timedelta(v[1], unit='m') + pd.to_timedelta(v[2], unit='s')
 
             if "calendar.txt" in zip_file.namelist():
                 calendar = pd.read_csv(
@@ -261,7 +280,19 @@ class GTFS:
             feed_info=feed_info, attributions=attributions)
     
     def summary(self):
-        # Return a summary of the data in a pandas dataframe
+        """ Return a Series summarizing the feed attributes
+        
+            Returns a pandas.Series object summarizing various attributes
+            of the loaded GTFS feed, with the following columns
+                agencies: list of agencies in feed
+                total_stops: the total number of stops in the feed
+                total_routes: the total number of routes in the feed
+                total_trips: the total number of trips in the feed
+                total_stops_made: the total number of stop_times events
+                first_date: the first date the feed is valid for
+                last_date: the last date the feed is valid for
+                total_shapes (optional): the total number of shapes in the feed.
+        """
         summary = pd.Series()
         summary['agencies'] = self.agency.agency_name.tolist()
         summary['total_stops'] = self.stops.shape[0]
@@ -280,6 +311,14 @@ class GTFS:
         return summary
 
     def valid_date(self, datestring):
+        """Checks whether the provided date falls within the feed's date range
+        
+        Parameters:
+            datestring (str): a string representing the date (YYYYMMDD)
+
+        Returns:
+            valid (bool): True if valid, false otherwise.
+        """
         summary = self.summary()
         if summary.first_date > int(datestring) or summary.last_date < int(datestring):
             return False
@@ -287,7 +326,18 @@ class GTFS:
             return True
 
     def day_trips(self, datestring):
-        # Gets all trips on a specified day, counting for exceptions
+        """Get all trips on a specified day.
+
+        Returns a slice of the `trips` DataFrame which corresponds to the
+        provided date. The method accounts for exceptions in the calendar_dates
+        dataset.
+
+        Parameters:
+            datestring (str): A string (YYYYMMDD) representing the date to count
+
+        Returns
+            trip_slice (DataFrame): A subset of the trips DataFrame.
+        """
         # First, get all standard trips that run on that particular day of the week
         if not self.valid_date(datestring):
             raise DateNotValidException
@@ -295,13 +345,29 @@ class GTFS:
         dayname = datetime.datetime.strptime(str(datestring), "%Y%m%d").strftime("%A").lower()
         if self.calendar is not None:
             service_ids = self.calendar[(self.calendar[dayname] == 1) & (self.calendar.start_date <= int(datestring)) & (self.calendar.end_date >= int(datestring))].service_id
-            service_ids = service_ids.append(self.calendar_dates[(self.calendar_dates.date == int(datestring)) & (self.calendar_dates.exception_type == 1)].service_id)
-            service_ids = service_ids[~service_ids.isin(self.calendar_dates[(self.calendar_dates.date == int(datestring)) & (self.calendar_dates.exception_type == 2)].service_id)]
+            if self.calendar_dates is not None
+                service_ids = service_ids.append(self.calendar_dates[(self.calendar_dates.date == int(datestring)) & (self.calendar_dates.exception_type == 1)].service_id)
+                service_ids = service_ids[~service_ids.isin(self.calendar_dates[(self.calendar_dates.date == int(datestring)) & (self.calendar_dates.exception_type == 2)].service_id)]
         else:
             service_ids = self.calendar_dates[(self.calendar_dates.date == int(datestring)) & (self.calendar_dates.exception_type == 1)].service_id
         return self.trips[self.trips.service_id.isin(service_ids)]
 
     def stop_summary(self, datestring, stop_id):
+        """Summarize information for a particular stop and day
+
+        Parameters:
+            datestring (str): A string representing the date to summarize (YYYYMMDD)
+            stop_id (str): An ID defining which stop to summarize
+
+        Returns a pandas.Series object summarizing various attributes
+        of the loaded GTFS feed, with the following columns
+            stop_id: The ID of the stop summarized
+            total_visits: The total number of times a stop is visited
+            first_arrival: The earliest arrival of the bus for the day
+            last_arrival: The latest arrival of the bus for the day
+            service_time: The total service span, in hours
+            average_headway: Average time in minutes between arrivals
+        """
         # Create a summary of stops for a given stop_id
 
         trips = self.day_trips(datestring)
@@ -310,13 +376,27 @@ class GTFS:
         summary = self.stops[self.stops.stop_id == stop_id].iloc[0]
         summary['total_visits'] = len(stop_times.index)
         summary['first_arrival'] = stop_times.arrival_time.min()
-        summary['last_departure'] = stop_times.departure_time.max()
-        summary['service_time'] = (int(summary.last_departure.split(":")[0]) + int(summary.last_departure.split(":")[1])/60.0 + int(summary.last_departure.split(":")[2])/3600.0) - (int(stop_times.arrival_time.min().split(":")[0]) + int(stop_times.arrival_time.min().split(":")[1])/60.0 + int(stop_times.arrival_time.min().split(":")[2])/3600.0)
+        summary['last_arrival'] = stop_times.arrival_time.max()
+        summary['service_time'] = (int(summary.last_arrival.split(":")[0]) + int(summary.last_arrival.split(":")[1])/60.0 + int(summary.last_arrival.split(":")[2])/3600.0) - (int(stop_times.arrival_time.min().split(":")[0]) + int(stop_times.arrival_time.min().split(":")[1])/60.0 + int(stop_times.arrival_time.min().split(":")[2])/3600.0)
         summary['average_headway'] = (summary.service_time/summary.total_visits)*60
         return summary
 
     def route_summary(self, datestring, route_id):
-        # Create a route summary
+        """Summarize information for a particular route and day
+
+        Parameters:
+            datestring (str): A string representing the date to summarize (YYYYMMDD)
+            route_id (str): An ID defining which route to summarize
+
+        Returns a pandas.Series object summarizing various attributes
+        of the loaded GTFS feed, with the following columns
+            route_id: The ID of the route summarized
+            total_trips: The total number of trips made on the route that day
+            first_departure: The earliest departure of the bus for the day
+            last_arrival: The latest arrival of the bus for the day
+            service_time: The total service span of the route, in hours
+            average_headway: Average time in minutes between trips on the route
+        """
 
         trips = self.day_trips(datestring)
         trips = trips[trips.route_id == route_id]
@@ -336,7 +416,20 @@ class GTFS:
         return summary
     
     def routes_summary(self, datestring):
-        # Get all the routes that run in that date
+        """Summarize all routes for a given day
+
+        Parameters:
+            datestring (str): A string representing the date to summarize (YYYYMMDD)
+
+        Returns a pandas.DataFrame object summarizing various attributes
+        of the loaded GTFS feed, with the following columns
+            route_id: The ID of the route summarized
+            total_trips: The total number of trips made on the route that day
+            first_departure: The earliest departure of the bus for the day
+            last_arrival: The latest arrival of the bus for the day
+            service_time: The total service span of the route, in hours
+            average_headway: Average time in minutes between trips on the route
+        """
         trips = self.day_trips(datestring)
         if "direction_id" in trips.columns: 
             trips = trips[trips.direction_id == 0]
@@ -356,28 +449,19 @@ class GTFS:
         summary = summary[["route_id", "trips", "first_departure", "last_arrival", "average_headway"]]
         summary = pd.merge(self.routes, summary, on="route_id", how="inner")
         return summary
-
-    def compare_by_route(self, other):
-        """Compare one GTFS feed to another
-        
-        TODO: Add description
-        """
-        #Only keep what doesn't match
-        
-        # Let's group by route
-        this_trips = self.trips[['trip_id', 'route_id']].groupby('route_id', as_index=False).count()
-        this_trips_routes = pd.merge(this_trips, self.routes[['route_id', 'route_short_name']], on='route_id')
-        other_trips = other.trips[['trip_id', 'route_id']].groupby('route_id', as_index=False).count()
-        other_trips_routes = pd.merge(other_trips, other.routes[['route_id', 'route_short_name']], on='route_id')
-        combined = pd.merge(this_trips_routes, other_trips_routes, on='route_short_name')
-        combined.columns = ['this_route_id', 'this_trips', 'route_short_name', 'other_route_id', 'other_trips']
-        combined['difference'] = combined['other_trips'] - combined['this_trips']
-        combined['pct_difference'] = 100.0*(combined['other_trips'] - combined['this_trips'])/combined['this_trips']
-        combined.to_csv('ttc_difference.csv', index=False)
-        print(combined)
     
     def service_hours(self, date, start_time, end_time):
-        """Get the total service hours in a specified date and time slice"""
+        """Compute the total service hours in a specified date and time slice
+        
+        Parameters:
+            date (datetime.date): The date to calculate
+            start_time (datetime.time): The beginning of the time slice
+            end_time (datetime.time): The end of the time slice
+
+        Returns:
+            diff (float): The total service hours.
+        
+        """
 
         # First, we need to get the service_ids that apply.
         service_ids = []
@@ -400,6 +484,7 @@ class GTFS:
         
         # Grab all the trips
         trips = self.trips[self.trips.service_id.isin(service_ids)]
+        
         # Grab all the stop_times
         stop_times = self.stop_times[self.stop_times.trip_id.isin(trips.trip_id) & (self.stop_times.arrival_time >= start) & (self.stop_times.arrival_time <= end)]
         grouped = stop_times[['trip_id', 'arrival_time']].groupby('trip_id', as_index=False).agg({'arrival_time': ['max', 'min']})
@@ -408,8 +493,4 @@ class GTFS:
         max_split = grouped['max'].str.split(":", expand=True).astype(int)
         min_split = grouped['min'].str.split(":", expand=True).astype(int)
         grouped['diff'] = (max_split[0] - min_split[0]) + (max_split[1] - min_split[1])/60 + (max_split[2] - min_split[2])/3600
-        # print(grouped.head(40))
         return(grouped['diff'].sum())
-        # service_ids = self.calendar[self.calendar[dow] == 1].service_id
-
-        # print(self.stop_times.head())
