@@ -59,7 +59,7 @@ class GTFS:
                 dtype={
                     'stop_id': str, 'stop_code': str, 'stop_name': str,
                     'stop_desc': str, 'stop_lat': float, 'stop_lon': float,
-                    'zone_id': str, 'stop_url': str, 'location_type': int,
+                    'zone_id': str, 'stop_url': str, 'location_type': 'Int64',
                     'parent_station': str, 'stop_timezone': str,
                     'wheelchair_boarding': 'Int64', 'level_id': str,
                     'platform_code': str
@@ -89,8 +89,13 @@ class GTFS:
                     'stop_id': str, 'stop_sequence': int, 'stop_headsign': str,
                     'pickup_type': 'Int64', 'drop_off_type': 'Int64', 
                     'shape_dist_traveled': float, 'timepoint': 'Int64'
-                }
+                },
             )
+            # v = stop_times.arrival_time.str.split(':', expand=True).astype(int)
+            # stop_times['arrival_time'] = pd.to_timedelta(v[0], unit='h') + pd.to_timedelta(v[1], unit='m') + pd.to_timedelta(v[2], unit='s')
+
+            # v = stop_times.departure_time.str.split(':', expand=True).astype(int)
+            # stop_times['departure_time'] = pd.to_timedelta(v[0], unit='h') + pd.to_timedelta(v[1], unit='m') + pd.to_timedelta(v[2], unit='s')
 
             if "calendar.txt" in zip_file.namelist():
                 calendar = pd.read_csv(
@@ -170,7 +175,7 @@ class GTFS:
                     zip_file.open("transfers.txt"),
                     dtype={
                         'from_stop_id': str, 'to_stop_id': str,
-                        'transfer_type': 'Int64', 'min_transfer_time': int
+                        'transfer_type': 'Int64', 'min_transfer_time': 'Int64'
                     }
                 )
             else:
@@ -182,9 +187,9 @@ class GTFS:
                     dtype={
                         'pathway_id': str, 'from_stop_id': str, 
                         'to_stop_id': str, 'pathway_mode': int,
-                        'is_bidirectional': str, 'length': float,
-                        'traversal_time': int, 'stair_count': int,
-                        'max_slope': float, 'min_width': float,
+                        'is_bidirectional': str, 'length': 'float64',
+                        'traversal_time': 'Int64', 'stair_count': 'Int64',
+                        'max_slope': 'float64', 'min_width': 'float64',
                         'signposted_as': str, 'reverse_signposted_as': str
                     }
                 )
@@ -351,3 +356,60 @@ class GTFS:
         summary = summary[["route_id", "trips", "first_departure", "last_arrival", "average_headway"]]
         summary = pd.merge(self.routes, summary, on="route_id", how="inner")
         return summary
+
+    def compare_by_route(self, other):
+        """Compare one GTFS feed to another
+        
+        TODO: Add description
+        """
+        #Only keep what doesn't match
+        
+        # Let's group by route
+        this_trips = self.trips[['trip_id', 'route_id']].groupby('route_id', as_index=False).count()
+        this_trips_routes = pd.merge(this_trips, self.routes[['route_id', 'route_short_name']], on='route_id')
+        other_trips = other.trips[['trip_id', 'route_id']].groupby('route_id', as_index=False).count()
+        other_trips_routes = pd.merge(other_trips, other.routes[['route_id', 'route_short_name']], on='route_id')
+        combined = pd.merge(this_trips_routes, other_trips_routes, on='route_short_name')
+        combined.columns = ['this_route_id', 'this_trips', 'route_short_name', 'other_route_id', 'other_trips']
+        combined['difference'] = combined['other_trips'] - combined['this_trips']
+        combined['pct_difference'] = 100.0*(combined['other_trips'] - combined['this_trips'])/combined['this_trips']
+        combined.to_csv('ttc_difference.csv', index=False)
+        print(combined)
+    
+    def service_hours(self, date, start_time, end_time):
+        """Get the total service hours in a specified date and time slice"""
+
+        # First, we need to get the service_ids that apply.
+        service_ids = []
+        start = start_time.strftime("%H:%M:%S")
+        end = end_time.strftime("%H:%M:%S")
+        # Start with the calendar
+        if self.calendar is not None:
+            dow = date.strftime("%A").lower()
+            service_ids.extend(self.calendar[(self.calendar[dow] == 1) & (self.calendar.start_date.dt.date <= date) & (self.calendar.end_date.dt.date >= date)].service_id.tolist())
+        
+        # Now handle exceptions if they are there
+        if self.calendar_dates is not None:
+            to_add = service_ids.extend(self.calendar_dates[(self.calendar_dates.date.dt == date) & self.calendar_dates.exception_type == 1].service_id.tolist())
+            to_del = service_ids.extend(self.calendar_dates[(self.calendar_dates.date.dt == date) & self.calendar_dates.exception_type == 2].service_id.tolist())
+            if to_add is not None:
+                service_ids.extend(to_add)
+            # Remove those that should be removed
+            if to_del is not None:
+                [service_ids.remove(i) for i in to_del]
+        
+        # Grab all the trips
+        trips = self.trips[self.trips.service_id.isin(service_ids)]
+        # Grab all the stop_times
+        stop_times = self.stop_times[self.stop_times.trip_id.isin(trips.trip_id) & (self.stop_times.arrival_time >= start) & (self.stop_times.arrival_time <= end)]
+        grouped = stop_times[['trip_id', 'arrival_time']].groupby('trip_id', as_index=False).agg({'arrival_time': ['max', 'min']})
+        grouped.columns = ['trip_id', 'max', 'min']
+        grouped.dropna()
+        max_split = grouped['max'].str.split(":", expand=True).astype(int)
+        min_split = grouped['min'].str.split(":", expand=True).astype(int)
+        grouped['diff'] = (max_split[0] - min_split[0]) + (max_split[1] - min_split[1])/60 + (max_split[2] - min_split[2])/3600
+        # print(grouped.head(40))
+        return(grouped['diff'].sum())
+        # service_ids = self.calendar[self.calendar[dow] == 1].service_id
+
+        # print(self.stop_times.head())
