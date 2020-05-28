@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="gtfs-lite", # Replace with your own username
-    version="0.1",
+    version="0.1.1",
     author="Willem Klumpenhouwer",
     author_email="willem@klumpentown.com",
     description="A lightweight pandas-driven package for analyzing static GTFS feeds.",
@@ -17,6 +17,12 @@ setuptools.setup(
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
+        "Development Status :: 3 - Alpha",
+        "Intended Audience :: Science/Research",
+        "Natural Language :: English",
     ],
     python_requires='>=3.6',
+    install_requires=[
+        'pandas>=1.0',
+    ]
 )

@@ -310,17 +310,17 @@ class GTFS:
 
         return summary
 
-    def valid_date(self, datestring):
+    def valid_date(self, date):
         """Checks whether the provided date falls within the feed's date range
         
         Parameters:
-            datestring (str): a string representing the date (YYYYMMDD)
+            date (datetime.date): a string representing the date (YYYYMMDD)
 
         Returns:
             valid (bool): True if valid, false otherwise.
         """
         summary = self.summary()
-        if summary.first_date > int(datestring) or summary.last_date < int(datestring):
+        if summary.first_date > date or summary.last_date < date:
             return False
         else:
             return True
@@ -345,7 +345,7 @@ class GTFS:
         dayname = datetime.datetime.strptime(str(datestring), "%Y%m%d").strftime("%A").lower()
         if self.calendar is not None:
             service_ids = self.calendar[(self.calendar[dayname] == 1) & (self.calendar.start_date <= int(datestring)) & (self.calendar.end_date >= int(datestring))].service_id
-            if self.calendar_dates is not None
+            if self.calendar_dates is not None:
                 service_ids = service_ids.append(self.calendar_dates[(self.calendar_dates.date == int(datestring)) & (self.calendar_dates.exception_type == 1)].service_id)
                 service_ids = service_ids[~service_ids.isin(self.calendar_dates[(self.calendar_dates.date == int(datestring)) & (self.calendar_dates.exception_type == 2)].service_id)]
         else:
@@ -462,6 +462,9 @@ class GTFS:
             diff (float): The total service hours.
         
         """
+
+        if not self.valid_date(date):
+            raise DateNotValidException(f"Date falls outside of feed span: {date}")
 
         # First, we need to get the service_ids that apply.
         service_ids = []
