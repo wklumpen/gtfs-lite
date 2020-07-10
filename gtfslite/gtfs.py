@@ -1,5 +1,6 @@
 from zipfile import ZipFile
 import datetime
+import calendar
 
 import pandas as pd
 
@@ -103,7 +104,7 @@ class GTFS:
                 dtype={
                     'route_id': str, 'service_id': str, 'trip_id': str,
                     'trip_headsign': str, 'trip_short_name': str,
-                    'direction_id': int, 'block_id': str, 'shape_id': str,
+                    'direction_id': 'Int64', 'block_id': str, 'shape_id': str,
                     'wheelchair_accessible': 'Int64', 'bikes_allowed': 'Int64'
                 })
             stop_times = pd.read_csv(
@@ -139,6 +140,8 @@ class GTFS:
                     },
                     parse_dates=['date']
                 )
+                if calendar_dates.shape[0] == 0:
+                    calendar_dates = None
             else:
                 calendar_dates = None
 
@@ -148,7 +151,7 @@ class GTFS:
                     dtype={
                         'fare_id': str, 'price': float, 'currency_type': str,
                         'payment_method': int, 'transfers': 'Int64',
-                        'agency_id': str, 'transfer_duration': int
+                        'agency_id': str, 'transfer_duration': 'Int64'
                     }
                 )
             else:
@@ -497,3 +500,52 @@ class GTFS:
         min_split = grouped['min'].str.split(":", expand=True).astype(int)
         grouped['diff'] = (max_split[0] - min_split[0]) + (max_split[1] - min_split[1])/60 + (max_split[2] - min_split[2])/3600
         return(grouped['diff'].sum())
+
+    def trip_distribution(self, start_date, end_date):
+        """Find the distribution of service by day of week for a given date range.
+
+        Parameters:
+            start_date (datetime.date): The start date for the search
+            end_date (datetime.date): The end date for the search
+        
+        Returns a pandas.Series containing as indices the days of the week and as values the total
+        number of trips found in the time slice.
+        """
+
+        days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
+        dist = pd.Series(
+            index=days, 
+            name='trips',
+            dtype='int'
+            )
+
+        # Start with calendar:
+        if self.calendar is not None:
+            for dow in dist.index:
+                # Get rows where that DOW happens in the date range
+                for idx, service in self.calendar[(self.calendar[dow] == True) & (self.calendar.start_date.dt.date <= start_date) & (self.calendar.end_date.dt.date >= end_date)].iterrows():
+                    # We'll need the number of a given days of the week in that range to multiply the calendar.
+                    week = {}
+                    for i in range(((end_date + datetime.timedelta(days=1)) - start_date).days):
+                        day       = calendar.day_name[(start_date + datetime.timedelta(days=i+1)).weekday()].lower()
+                        week[day] = week[day] + 1 if day in week else 1
+
+                     # Get trips with that service id and add them to the total, only if that day is in there.
+                    if dow in week.keys():
+                        dist[dow] = dist[dow] + week[dow]*self.trips[self.trips.service_id == service.service_id].trip_id.count()
+
+        # Now check exceptions to add and remove
+        if self.calendar_dates is not None:
+            # Start by going through all the calendar dates within the date range
+            # cd = self.calendar_dates.copy()
+            for index, cd in self.calendar_dates[(self.calendar_dates['date'].dt.date >= start_date) & (self.calendar_dates['date'].dt.date <= end_date)].iterrows():
+                if cd['exception_type'] == 1:
+                    dist[days[cd['date'].dayofweek]] += self.trips[self.trips.service_id == cd['service_id']].trip_id.count()
+                else:
+                    dist[days[cd['date'].dayofweek]] -= self.trips[self.trips.service_id == cd['service_id']].trip_id.count()
+
+        return dist
+
+
+
+
