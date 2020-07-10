@@ -1,6 +1,7 @@
 from zipfile import ZipFile
 import datetime
 import calendar
+import json
 
 import pandas as pd
 
@@ -545,6 +546,37 @@ class GTFS:
                     dist[days[cd['date'].dayofweek]] -= self.trips[self.trips.service_id == cd['service_id']].trip_id.count()
 
         return dist
+
+    def route_stops_inside(self, path_to_shape, format='geojson'):
+        """Count the number of stops a given route has inside an area
+
+        Args:
+            path_to_shape (str): 
+            format (str, optional): Format of shape. Can be 'geojson' or 'shp'. Defaults to 'geojson'.
+        """
+        from shapely.geometry import Point, shape, GeometryCollection
+        
+        count = 0
+        # For starters, let's load a bounding box and check how many stops are in the point
+        if format == 'geojson':
+            with open(path_to_shape) as f:
+                features = json.load(f)["features"]
+                boundary = GeometryCollection([shape(feature["geometry"]).buffer(0) for feature in features])
+                routes = []
+                counts = []
+                for idx, route in self.routes.iterrows():
+                    # Get all the stops on trips for that route.
+                    stops = self.stop_times[self.stop_times.trip_id.isin(self.trips[self.trips.route_id == route.route_id].trip_id)].stop_id.unique()
+                # NOTE: buffer(0) is a trick for fixing scenarios where polygons have overlapping coordinates 
+                    count = 0
+                    for idx, stop in self.stops[self.stops.stop_id.isin(stops)].iterrows():
+                        if Point(stop.stop_lon, stop.stop_lat).within(boundary):
+                            count += 1
+                    routes.append(route.route_id)
+                    counts.append(count)
+        
+        stop_count = pd.DataFrame(counts, index=routes)
+        return stop_count
 
 
 
