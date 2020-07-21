@@ -1,6 +1,7 @@
-# Data folder and zipfiles
+# Data
 data/
 *.zip
+*.csv
 
 # VSCode stuff
 .vscode/
