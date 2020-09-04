@@ -297,7 +297,7 @@ class GTFS:
                 last_date: the last date the feed is valid for
                 total_shapes (optional): the total number of shapes in the feed.
         """
-        summary = pd.Series()
+        summary = pd.Series(dtype=str)
         summary['agencies'] = self.agency.agency_name.tolist()
         summary['total_stops'] = self.stops.shape[0]
         summary['total_routes'] = self.routes.shape[0]
