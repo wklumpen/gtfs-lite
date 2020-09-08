@@ -318,18 +318,20 @@ class GTFS:
         """Checks whether the provided date falls within the feed's date range
         
         Parameters:
-            date (datetime.date): a string representing the date (YYYYMMDD)
+            date (datetime.date): A datetime object representing the date
 
         Returns:
             valid (bool): True if valid, false otherwise.
         """
         summary = self.summary()
+        if type(date) == str:
+            date = datetime.datetime.strptime(date, "%Y%m%d")
         if summary.first_date > date or summary.last_date < date:
             return False
         else:
             return True
 
-    def day_trips(self, datestring):
+    def day_trips(self, date):
         """Get all trips on a specified day.
 
         Returns a slice of the `trips` DataFrame which corresponds to the
@@ -337,23 +339,24 @@ class GTFS:
         dataset.
 
         Parameters:
-            datestring (str): A string (YYYYMMDD) representing the date to count
+            date (datetime.date): A datetime object representing the day to check
 
         Returns
             trip_slice (DataFrame): A subset of the trips DataFrame.
         """
         # First, get all standard trips that run on that particular day of the week
-        if not self.valid_date(datestring):
+        if not self.valid_date(date):
             raise DateNotValidException
 
-        dayname = datetime.datetime.strptime(str(datestring), "%Y%m%d").strftime("%A").lower()
+        dayname = date.strftime("%A").lower()
+        date_compare = pd.to_datetime(date)
         if self.calendar is not None:
-            service_ids = self.calendar[(self.calendar[dayname] == 1) & (self.calendar.start_date <= int(datestring)) & (self.calendar.end_date >= int(datestring))].service_id
+            service_ids = self.calendar[(self.calendar[dayname] == 1) & (self.calendar.start_date <= date_compare) & (self.calendar.end_date >= date_compare)].service_id
             if self.calendar_dates is not None:
-                service_ids = service_ids.append(self.calendar_dates[(self.calendar_dates.date == int(datestring)) & (self.calendar_dates.exception_type == 1)].service_id)
-                service_ids = service_ids[~service_ids.isin(self.calendar_dates[(self.calendar_dates.date == int(datestring)) & (self.calendar_dates.exception_type == 2)].service_id)]
+                service_ids = service_ids.append(self.calendar_dates[(self.calendar_dates.date == date_compare) & (self.calendar_dates.exception_type == 1)].service_id)
+                service_ids = service_ids[~service_ids.isin(self.calendar_dates[(self.calendar_dates.date == date_compare) & (self.calendar_dates.exception_type == 2)].service_id)]
         else:
-            service_ids = self.calendar_dates[(self.calendar_dates.date == int(datestring)) & (self.calendar_dates.exception_type == 1)].service_id
+            service_ids = self.calendar_dates[(self.calendar_dates.date == date_compare) & (self.calendar_dates.exception_type == 1)].service_id
         return self.trips[self.trips.service_id.isin(service_ids)]
 
     def stop_summary(self, datestring, stop_id):
@@ -454,13 +457,13 @@ class GTFS:
         summary = pd.merge(self.routes, summary, on="route_id", how="inner")
         return summary
     
-    def service_hours(self, date, start_time, end_time):
+    def service_hours(self, date, start_time=datetime.time(0, 0), end_time=datetime.time(23, 59)):
         """Compute the total service hours in a specified date and time slice
         
         Parameters:
             date (datetime.date): The date to calculate
-            start_time (datetime.time): The beginning of the time slice
-            end_time (datetime.time): The end of the time slice
+            start_time (datetime.time): The beginning of the time slice (default 0:00)
+            end_time (datetime.time): The end of the time slice (default 23:59)
 
         Returns:
             diff (float): The total service hours.
@@ -577,6 +580,29 @@ class GTFS:
         
         stop_count = pd.DataFrame(counts, index=routes)
         return stop_count
+
+    def trips_at_stops(self, stop_ids, date, start_time=datetime.time(0, 0), end_time=datetime.time(23, 59)):
+        """Get a set of unique trips that visit a given stop
+        
+        Parameters:
+            stop_ids (list): A list of stop_ids to check for unique trips
+            start_time (datetime.time): The beginning of the day's time slice (default 0:00)
+            end_time (datetime.time): The end of the day's time slice (default 23:59)
+        
+        Returns:
+            trips_at_stops: A subset of the trips dataframe that serve those stops
+        """
+
+        # Start by filtering all stop_trips by the given dateslice
+        trips = self.day_trips(date)
+
+        # Now let's grab the stop_trips
+        stop_trips = self.stop_times[(self.stop_times.trip_id.isin(trips.trip_id)) & (self.stop_times.stop_id.isin(stop_ids))]
+
+        # We've got the stop times, so let's grab the unique trips
+        unique_trips = self.stop_times.trip_id.unique()
+
+        return self.trips[self.trips.trip_id.isin(unique_trips)]
 
 
 

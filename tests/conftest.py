@@ -12,3 +12,7 @@ def test_date():
 @pytest.fixture
 def test_timerange():
     return [time(0, 0), time(23, 59)]
+
+@pytest.fixture
+def test_stop_ids():
+    return [time(0, 0), time(23, 59)]
