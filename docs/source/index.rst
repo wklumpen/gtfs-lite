@@ -18,8 +18,6 @@ function::
    from gtfslite.gtfs import GTFS
    gtfs = GTFS.load_zip('path/to/file.zip')
 
-::
-
 From there, a number of helper and analytical methods are accessible.
 
 .. note::
