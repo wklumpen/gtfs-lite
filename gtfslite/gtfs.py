@@ -12,13 +12,62 @@ class FeedNotValidException(Exception):
     pass
 
 class GTFS:
-    """
-    A class to represent and manage a GTFS feed.
-    ...
+    """A representation of a single static GTFS feed and associated data. 
     
     GTFS holds, as Pandas data frames, the various datasets as defined by the
     GTFS static protocol (http://gtfs.org/reference/static). Optional datasets
-    are set to `None` if data is not passed.
+    are set to None if data is not passed.
+
+    :param agency: Transit agencies with service represented in this dataset.
+    :type agency: :py:mod:`pandas.DataFrame`
+    :param stops: Stops where vehicles pick up or drop off riders. Also defines 
+        stations and station entrances.
+    :type stops: :py:mod:`pandas.DataFrame`
+    :param routes: Transit routes. A route is a group of trips that are 
+        displayed to riders as a single service.
+    :type routes: :py:mod:`pandas.DataFrame`
+    :param trips: Trips for each route. A trip is a sequence of two or more 
+        stops that occur during a specific time period.
+    :type trips: :py:mod:`pandas.DataFrame`
+    :param stop_times: Times that a vehicle arrives at and departs from stops for each trip.
+    :type stop_times: :py:mod:`pandas.DataFrame`
+    :param calendar: Service dates specified using a weekly schedule with 
+        start and end dates. This file is required unless all dates of service 
+        are defined in calendar_dates.txt.
+    :type calendar: :py:mod:`pandas.DataFrame`, conditionally required
+    :param calendar_dates: Exceptions for the services defined in `calendar`. 
+        If `calendar` is omitted, then calendar_dates.txt is required and must contain all dates of service.
+    :type calendar_dates: :py:mod:`pandas.DataFrame`, conditionally required
+
+    :param fare_attributes: Fare information for a transit agency's routes.
+    :type fare_attributes: :py:mod:`pandas.DataFrame`, optional
+    :param fare_rules: 	Rules to apply fares for itineraries.
+    :type fare_rules: :py:mod:`pandas.DataFrame`, optional
+    :param shapes: Rules for mapping vehicle travel paths, sometimes referred 
+        to as route alignments.
+    :type shapes: :py:mod:`pandas.DataFrame`, optional
+    :param frequencies: Headway (time between trips) for headway-based service 
+        or a compressed representation of fixed-schedule service.
+    :type frequencies: :py:mod:`pandas.DataFrame`, optional
+    :param transfers: Rules for making connections at transfer points between 
+        routes.
+    :type transfers: :py:mod:`pandas.DataFrame`, optional
+    :param pathways: Pathways linking together locations within stations.
+    :type pathways: :py:mod:`pandas.DataFrame`, optional
+    :param levels: Levels within stations.
+    :type levels: :py:mod:`pandas.DataFrame`, optional
+    :param feed_info: Dataset metadata, including publisher, version, 
+        and expiration information.
+    :param translations: In regions that have multiple official languages, 
+        transit agencies/operators typically have language-specific names and 
+        web pages. In order to best serve riders in those regions, it is useful 
+        for the dataset to include these language-dependent values..
+    :type translations: :py:mod:`pandas.DataFrame`, optional
+    :type feed_info: :py:mod:`pandas.DataFrame`, optional
+    :param attributions: Dataset attributions.
+    :type attributions: :py:mod:`pandas.DataFrame`, optional
+    
+    :raises FeedNotValidException: An exception indicating an invalid feed.
     """
     def __init__(self, agency, stops, routes, trips, stop_times, 
         calendar=None, calendar_dates=None, fare_attributes=None, 
@@ -61,13 +110,13 @@ class GTFS:
 
     @staticmethod
     def load_zip(filepath):
-        """Load a zipped GTFS feed
+        """Creates a :class:`GTFS` object from a zipfile containing the
+        appropriate data.
 
-        Parameters:
-            filepath (str): the filepath of the zipped GTFS feed
-        
-        Returns:
-            A GTFS object with loaded data.
+        :param filepath: The filepath of the zipped GTFS feed.
+        :type filepath: str
+
+        :return: A :class:`GTFS` object with loaded and validated data.
         """
         with ZipFile(filepath, 'r') as zip_file:
             # Create pandas objects of the entire feed
@@ -284,19 +333,21 @@ class GTFS:
             feed_info=feed_info, attributions=attributions)
     
     def summary(self):
-        """ Return a Series summarizing the feed attributes
-        
-            Returns a pandas.Series object summarizing various attributes
-            of the loaded GTFS feed, with the following columns
-                agencies: list of agencies in feed
-                total_stops: the total number of stops in the feed
-                total_routes: the total number of routes in the feed
-                total_trips: the total number of trips in the feed
-                total_stops_made: the total number of stop_times events
-                first_date: the first date the feed is valid for
-                last_date: the last date the feed is valid for
-                total_shapes (optional): the total number of shapes in the feed.
+        """ Assemble a series of attributes summarizing the GTFS feed with the
+        following columns:
+
+        * *agencies*: list of agencies in feed
+        * *total_stops*: the total number of stops in the feed
+        * *total_routes*: the total number of routes in the feed
+        * *total_trips*: the total number of trips in the feed
+        * *total_stops_made*: the total number of stop_times events
+        * *first_date*: the first date the feed is valid for
+        * *last_date*: the last date the feed is valid for
+        * *total_shapes* (optional): the total number of shapes. 
+
+        :returns: A :py:mod:`pandas.Series` containing the relevant data.
         """
+
         summary = pd.Series(dtype=str)
         summary['agencies'] = self.agency.agency_name.tolist()
         summary['total_stops'] = self.stops.shape[0]
@@ -317,12 +368,12 @@ class GTFS:
     def valid_date(self, date):
         """Checks whether the provided date falls within the feed's date range
         
-        Parameters:
-            date (datetime.date): A datetime object representing the date
-
-        Returns:
-            valid (bool): True if valid, false otherwise.
+        :param date: A datetime object with the date to be validated.
+        :type date: :py:mod:`datetime.date`
+        :return: `True` if the date is a valid one, `False` otherwise.
+        :rtype: bool
         """
+
         summary = self.summary()
         if type(date) == str:
             date = datetime.datetime.strptime(date, "%Y%m%d")
@@ -332,18 +383,17 @@ class GTFS:
             return True
 
     def day_trips(self, date):
-        """Get all trips on a specified day.
+        """Finds all the trips that occur on a specified day. This method
+        accounts for exceptions included in the `calendar_dates` dataset.
 
-        Returns a slice of the `trips` DataFrame which corresponds to the
-        provided date. The method accounts for exceptions in the calendar_dates
-        dataset.
+        :param date: The day to check
+        :type date: :py:mod:`datetime.date`
 
-        Parameters:
-            date (datetime.date): A datetime object representing the day to check
-
-        Returns
-            trip_slice (DataFrame): A subset of the trips DataFrame.
+        :return: A slice of the `trips` dataframe which corresponds to the
+            provided date.
+        :rtype: :py:mod:`pandas.DataFrame`
         """
+
         # First, get all standard trips that run on that particular day of the week
         if not self.valid_date(date):
             raise DateNotValidException
@@ -359,25 +409,28 @@ class GTFS:
             service_ids = self.calendar_dates[(self.calendar_dates.date == date_compare) & (self.calendar_dates.exception_type == 1)].service_id
         return self.trips[self.trips.service_id.isin(service_ids)]
 
-    def stop_summary(self, datestring, stop_id):
-        """Summarize information for a particular stop and day
+    def stop_summary(self, date, stop_id):
+        """Assemble a series of attributes summarizing a stop on a particular
+        day. The following columns are returned:
 
-        Parameters:
-            datestring (str): A string representing the date to summarize (YYYYMMDD)
-            stop_id (str): An ID defining which stop to summarize
+        * *stop_id*: The ID of the stop summarized
+        * *total_visits*: The total number of times a stop is visited
+        * *first_arrival*: The earliest arrival of the bus for the day
+        * *last_arrival*: The latest arrival of the bus for the day
+        * *service_time*: The total service span, in hours
+        * *average_headway*: Average time in minutes between arrivals
 
-        Returns a pandas.Series object summarizing various attributes
-        of the loaded GTFS feed, with the following columns
-            stop_id: The ID of the stop summarized
-            total_visits: The total number of times a stop is visited
-            first_arrival: The earliest arrival of the bus for the day
-            last_arrival: The latest arrival of the bus for the day
-            service_time: The total service span, in hours
-            average_headway: Average time in minutes between arrivals
+        :param date: The day to summarize
+        :type date: :py:mod:`datetime.date`
+        :param stop_id: The ID of the stop to summarize.
+        :type stop_id: str
+        :return: A :py:mod:`pandas.Series` object containing the summarized
+            data.
         """
+
         # Create a summary of stops for a given stop_id
 
-        trips = self.day_trips(datestring)
+        trips = self.day_trips(date)
         stop_times = self.stop_times[self.stop_times.trip_id.isin(trips.trip_id) & (self.stop_times.stop_id == stop_id)]
 
         summary = self.stops[self.stops.stop_id == stop_id].iloc[0]
@@ -388,24 +441,26 @@ class GTFS:
         summary['average_headway'] = (summary.service_time/summary.total_visits)*60
         return summary
 
-    def route_summary(self, datestring, route_id):
-        """Summarize information for a particular route and day
+    def route_summary(self, date, route_id):
+        """Assemble a series of attributes summarizing a route on a particular
+        day. The following columns are returned:
+        
+        * *route_id*: The ID of the route summarized
+        * *total_trips*: The total number of trips made on the route that day
+        * *first_departure*: The earliest departure of the bus for the day
+        * *last_arrival*: The latest arrival of the bus for the day
+        * *service_time*: The total service span of the route, in hours
+        * *average_headway*: Average time in minutes between trips on the route
 
-        Parameters:
-            datestring (str): A string representing the date to summarize (YYYYMMDD)
-            route_id (str): An ID defining which route to summarize
-
-        Returns a pandas.Series object summarizing various attributes
-        of the loaded GTFS feed, with the following columns
-            route_id: The ID of the route summarized
-            total_trips: The total number of trips made on the route that day
-            first_departure: The earliest departure of the bus for the day
-            last_arrival: The latest arrival of the bus for the day
-            service_time: The total service span of the route, in hours
-            average_headway: Average time in minutes between trips on the route
+        :param date: The day to summarize.
+        :type date: :py:mod:`datetime.date`
+        :param route_id: The ID of the route to summarize
+        :type route_id: str
+        :return: A :py:mod:`pandas.Series` object containing the summarized 
+            data.
         """
 
-        trips = self.day_trips(datestring)
+        trips = self.day_trips(date)
         trips = trips[trips.route_id == route_id]
         stop_times = self.stop_times[self.stop_times.trip_id.isin(trips.trip_id)]
         summary = pd.Series()
@@ -422,22 +477,17 @@ class GTFS:
         summary['average_headway'] = 60*route_headway/visits
         return summary
     
-    def routes_summary(self, datestring):
-        """Summarize all routes for a given day
+    def routes_summary(self, date):
+        """Summarizes all routes in a given day. The columns of the resulting
+        dataset match the columns of :func:`route_summary`
 
-        Parameters:
-            datestring (str): A string representing the date to summarize (YYYYMMDD)
-
-        Returns a pandas.DataFrame object summarizing various attributes
-        of the loaded GTFS feed, with the following columns
-            route_id: The ID of the route summarized
-            total_trips: The total number of trips made on the route that day
-            first_departure: The earliest departure of the bus for the day
-            last_arrival: The latest arrival of the bus for the day
-            service_time: The total service span of the route, in hours
-            average_headway: Average time in minutes between trips on the route
+        :param date: The day to summarize.
+        :type date: :py:mod:`datetime.date`
+        :return: A :py:mod:`pandas.DataFrame` object containing the summarized
+            data.
         """
-        trips = self.day_trips(datestring)
+
+        trips = self.day_trips(date)
         if "direction_id" in trips.columns: 
             trips = trips[trips.direction_id == 0]
         stop_times = self.stop_times[self.stop_times.trip_id.isin(trips.trip_id)]
@@ -458,16 +508,24 @@ class GTFS:
         return summary
     
     def service_hours(self, date, start_time=datetime.time(0, 0), end_time=datetime.time(23, 59)):
-        """Compute the total service hours in a specified date and time slice
-        
-        Parameters:
-            date (datetime.date): The date to calculate
-            start_time (datetime.time): The beginning of the time slice (default 0:00)
-            end_time (datetime.time): The end of the time slice (default 23:59)
+        """Computes the total service hours delivered for a specified date
+        within a specified time slice.
 
-        Returns:
-            diff (float): The total service hours.
-        
+        **Note:** This function currently does not support end_times that 
+        are past 23:59. A new time slice for the following day must be 
+        calculated separately.
+
+        :param date: The date to calculate.
+        :type date: :py:mod:`datetime.date`
+        :param start_time: The time of day to start the calculation from.
+            Defaults to 0:00
+        :type start_time: :py:mod:`datetime.time`, optional
+        :param end_time: The time of day to start the calculation from.
+            Defaults to 23:59
+        :type end_time: :py:mod:`datetime.time`, optional
+        :raises DateNotValidException: An exception indicating an invalid date.
+        :returns: The total service hours.
+        :rtype: float
         """
 
         if not self.valid_date(date):
@@ -506,14 +564,17 @@ class GTFS:
         return(grouped['diff'].sum())
 
     def trip_distribution(self, start_date, end_date):
-        """Find the distribution of service by day of week for a given date range.
-
-        Parameters:
-            start_date (datetime.date): The start date for the search
-            end_date (datetime.date): The end date for the search
+        """Summarize the distribution of service by day of week for a given
+        date range. Repeated days of the week will be counted multiple times.
         
-        Returns a pandas.Series containing as indices the days of the week and as values the total
-        number of trips found in the time slice.
+        :param start_date: The start date for the summary
+        :type start_date: :py:mod:`datetime.date`
+        :param end_date: The end date for the summary
+        :type end_date: :py:mod:`datetime.date`
+        
+        :return: A :py:mod:`pandas.Series` object containing as indices the 
+            days of the week and as values the total number of trips found in the 
+            time slice.
         """
 
         days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
@@ -551,12 +612,20 @@ class GTFS:
         return dist
 
     def route_stops_inside(self, path_to_shape, format='geojson'):
-        """Count the number of stops a given route has inside an area
+        """Count the number of stops a given route has inside a geographical
+        boundary or shape.
 
-        Args:
-            path_to_shape (str): 
-            format (str, optional): Format of shape. Can be 'geojson' or 'shp'. Defaults to 'geojson'.
+        :param path_to_shape: A path to the file containing the shapes. This
+            file must contain unprojected geospatial information in WGS:84 format.
+        :type path_to_shape: str
+        :param format: The format of the geospatial file. **Note:** currently,
+            only the default `geojson` is supported.
+        :type format: str, optional
+        :return: A :py:mod:`pandas.DataFrame` object listing each route and
+            the number of stops served by that route that fall within the
+            provided boundary.
         """
+
         from shapely.geometry import Point, shape, GeometryCollection
         
         count = 0
@@ -584,13 +653,19 @@ class GTFS:
     def trips_at_stops(self, stop_ids, date, start_time=datetime.time(0, 0), end_time=datetime.time(23, 59)):
         """Get a set of unique trips that visit a given stop
         
-        Parameters:
-            stop_ids (list): A list of stop_ids to check for unique trips
-            start_time (datetime.time): The beginning of the day's time slice (default 0:00)
-            end_time (datetime.time): The end of the day's time slice (default 23:59)
+        :param stop_ids: A list of stop_ids to check for unique trips
+        :type stop_ids: list
+        :param date: The date to calculate.
+        :type date: :py:mod:`datetime.date`
+        :param start_time: The time of day to start the calculation from.
+            Defaults to 0:00
+        :type start_time: :py:mod:`datetime.time`, optional
+        :param end_time: The time of day to start the calculation from.
+            Defaults to 23:59
+        :type end_time: :py:mod:`datetime.time`, optional
         
-        Returns:
-            trips_at_stops: A subset of the trips dataframe that serve those stops
+        :return: A :py:mod:`pandas.DataFrame` as a subset of the 
+            :py:attr:`GTFS.trips` dataframe.
         """
 
         # Start by filtering all stop_trips by the given dateslice
