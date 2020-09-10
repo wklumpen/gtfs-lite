@@ -675,7 +675,7 @@ class GTFS:
         stop_trips = self.stop_times[(self.stop_times.trip_id.isin(trips.trip_id)) & (self.stop_times.stop_id.isin(stop_ids))]
 
         # We've got the stop times, so let's grab the unique trips
-        unique_trips = self.stop_times.trip_id.unique()
+        unique_trips = self.stop_trips.trip_id.unique()
 
         return self.trips[self.trips.trip_id.isin(unique_trips)]
 
