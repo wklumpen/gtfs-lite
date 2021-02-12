@@ -11,6 +11,17 @@ class DateNotValidException(Exception):
 class FeedNotValidException(Exception):
     pass
 
+REQUIRED_FILES = [
+    'agency.txt', 'stops.txt', 'routes.txt', 'trips.txt', 'stop_times.txt'
+    ]
+OPTIONAL_FILES = [
+    'calendar.txt', 'calendar_dates.txt', 'fare_attributes.txt', 
+    'fare_rules.txt', 'shapes.txt', 'frequencies.txt', 'transfers.txt', 
+    'pathways.txt', 'levels.txt', 'translations.txt', 'feed_info.txt', 
+    'attributions.txt'
+    ]
+
+
 class GTFS:
     """A representation of a single static GTFS feed and associated data. 
     
@@ -119,9 +130,20 @@ class GTFS:
         :return: A :class:`GTFS` object with loaded and validated data.
         """
         with ZipFile(filepath, 'r') as zip_file:
+
+            # Deal with nested files
+            filepaths = dict()
+            print(REQUIRED_FILES + OPTIONAL_FILES)
+            for req in REQUIRED_FILES + OPTIONAL_FILES:
+                filepaths[req] = None
+            for file in zip_file.namelist():
+                for req in REQUIRED_FILES + OPTIONAL_FILES:
+                    if req in file:
+                        filepaths[req] = file
+
             # Create pandas objects of the entire feed
             agency = pd.read_csv(
-                zip_file.open("agency.txt"),
+                zip_file.open(filepaths["agency.txt"]),
                 dtype={
                     'agency_id': str, 'agency_name': str, 'agency_url': str,
                     'agency_timezone': str, 'agency_lang': str,
@@ -130,7 +152,7 @@ class GTFS:
                 }
             )
             stops = pd.read_csv(
-                zip_file.open("stops.txt"),
+                zip_file.open(filepaths["stops.txt"]),
                 dtype={
                     'stop_id': str, 'stop_code': str, 'stop_name': str,
                     'stop_desc': str, 'stop_lat': float, 'stop_lon': float,
@@ -141,7 +163,7 @@ class GTFS:
                 }
             )
             routes = pd.read_csv(
-                zip_file.open("routes.txt"),
+                zip_file.open(filepaths["routes.txt"]),
                 dtype={
                     'route_id': str, 'agency_id': str, 'route_short_name': str,
                     'route_long_name': str, 'route_desc': str,
@@ -150,7 +172,7 @@ class GTFS:
                 }
             )
             trips = pd.read_csv(
-                zip_file.open("trips.txt"),
+                zip_file.open(filepaths["trips.txt"]),
                 dtype={
                     'route_id': str, 'service_id': str, 'trip_id': str,
                     'trip_headsign': str, 'trip_short_name': str,
@@ -158,7 +180,7 @@ class GTFS:
                     'wheelchair_accessible': 'Int64', 'bikes_allowed': 'Int64'
                 })
             stop_times = pd.read_csv(
-                zip_file.open("stop_times.txt"),
+                zip_file.open(filepaths["stop_times.txt"]),
                 dtype={
                     'trip_id': str, 'arrival_time': str, 'departure_time': str,
                     'stop_id': str, 'stop_sequence': int, 'stop_headsign': str,
@@ -167,9 +189,9 @@ class GTFS:
                 },
             )
 
-            if "calendar.txt" in zip_file.namelist():
+            if filepaths["calendar.txt"] in zip_file.namelist():
                 calendar = pd.read_csv(
-                    zip_file.open("calendar.txt"), 
+                    zip_file.open(filepaths["calendar.txt"]), 
                     dtype={
                         'service_id': str,'monday': bool, 'tuesday': bool,
                         'wednesday': bool, 'thursday': bool, 'friday': bool,
@@ -182,9 +204,9 @@ class GTFS:
             else:
                 calendar = None
 
-            if "calendar_dates.txt" in zip_file.namelist():
+            if filepaths["calendar_dates.txt"] in zip_file.namelist():
                 calendar_dates = pd.read_csv(
-                    zip_file.open("calendar_dates.txt"),
+                    zip_file.open(filepaths["calendar_dates.txt"]),
                     dtype={
                         'service_id': str, 'date': str, 'exception_type': int
                     },
@@ -195,9 +217,9 @@ class GTFS:
             else:
                 calendar_dates = None
 
-            if "fare_attributes.txt" in zip_file.namelist():
+            if filepaths["fare_attributes.txt"] in zip_file.namelist():
                 fare_attributes = pd.read_csv(
-                    zip_file.open("fare_attributes.txt"),
+                    zip_file.open(filepaths["fare_attributes.txt"]),
                     dtype={
                         'fare_id': str, 'price': float, 'currency_type': str,
                         'payment_method': int, 'transfers': 'Int64',
@@ -207,9 +229,9 @@ class GTFS:
             else:
                 fare_attributes = None
 
-            if "fare_rules.txt" in zip_file.namelist():
+            if filepaths["fare_rules.txt"] in zip_file.namelist():
                 fare_rules = pd.read_csv(
-                    zip_file.open("fare_rules.txt"),
+                    zip_file.open(filepaths["fare_rules.txt"]),
                     dtype={
                         'fare_id': str, 'route_id': str, 'origin_id': str,
                         'destination_id': str, 'contains_id': str
@@ -218,9 +240,9 @@ class GTFS:
             else:
                 fare_rules = None
             
-            if "shapes.txt" in zip_file.namelist():
+            if filepaths["shapes.txt"] in zip_file.namelist():
                 shapes = pd.read_csv(
-                    zip_file.open("shapes.txt"),
+                    zip_file.open(filepaths["shapes.txt"]),
                     dtype={
                         'shape_id': str, 'shape_pt_lat': float,
                         'shape_pt_lon': float, 'shape_pt_sequence': int,
@@ -230,9 +252,9 @@ class GTFS:
             else:
                 shapes = None
 
-            if "frequencies.txt" in zip_file.namelist():
+            if filepaths["frequencies.txt"] in zip_file.namelist():
                 frequencies = pd.read_csv(
-                    zip_file.open("frequencies.txt"),
+                    zip_file.open(filepaths["frequencies.txt"]),
                     dtype={
                         'trip_id': str, 'start_time': str, 'end_time': str,
                         'headway_secs': int, 'exact_times': int
@@ -242,9 +264,9 @@ class GTFS:
             else:
                 frequencies = None
 
-            if "transfers.txt" in zip_file.namelist():
+            if filepaths["transfers.txt"] in zip_file.namelist():
                 transfers = pd.read_csv(
-                    zip_file.open("transfers.txt"),
+                    zip_file.open(filepaths["transfers.txt"]),
                     dtype={
                         'from_stop_id': str, 'to_stop_id': str,
                         'transfer_type': 'Int64', 'min_transfer_time': 'Int64'
@@ -253,9 +275,9 @@ class GTFS:
             else:
                 transfers = None
 
-            if "pathways.txt" in zip_file.namelist():
+            if filepaths["pathways.txt"] in zip_file.namelist():
                 pathways = pd.read_csv(
-                    zip_file.open("pathways.txt"),
+                    zip_file.open(filepaths["pathways.txt"]),
                     dtype={
                         'pathway_id': str, 'from_stop_id': str, 
                         'to_stop_id': str, 'pathway_mode': int,
@@ -268,9 +290,9 @@ class GTFS:
             else:
                 pathways = None
             
-            if "levels.txt" in zip_file.namelist():
+            if filepaths["levels.txt"] in zip_file.namelist():
                 levels = pd.read_csv(
-                    zip_file.open("levels.txt"),
+                    zip_file.open(filepaths["levels.txt"]),
                     dtype={
                         'level_id': str, 'level_index': float,
                         'level_name': str
@@ -279,9 +301,9 @@ class GTFS:
             else:
                 levels = None
 
-            if "translations.txt" in zip_file.namelist():
+            if filepaths["translations.txt"] in zip_file.namelist():
                 translations = pd.read_csv(
-                    zip_file.open("translations.txt"),
+                    zip_file.open(filepaths["translations.txt"]),
                     dtype={
                         'table_name': str, 'field_name': str, 'language': str,
                         'translation': str, 'record_id': str,
@@ -289,7 +311,7 @@ class GTFS:
                     }
                 )
                 feed_info = pd.read_csv(
-                    zip_file.open("feed_info.txt"),
+                    zip_file.open(filepaths["feed_info.txt"]),
                     dtype={
                         'feed_publisher_name': str, 'feed_publisher_url': str,
                         'feed_lang': str, 'default_lang': str,
@@ -298,9 +320,9 @@ class GTFS:
                         'feed_contact_url': str
                     }
                 )
-            elif "feed_info.txt" in zip_file.namelist():
+            elif filepaths["feed_info.txt"] in zip_file.namelist():
                 feed_info = pd.read_csv(
-                    zip_file.open("feed_info.txt"),
+                    zip_file.open(filepaths["feed_info.txt"]),
                     dtype={
                         'feed_publisher_name': str, 'feed_publisher_url': str,
                         'feed_lang': str, 'default_lang': str,
@@ -314,7 +336,7 @@ class GTFS:
                 translations = None
                 feed_info = None
 
-            if "attributions.txt" in zip_file.namelist():
+            if filepaths["attributions.txt"] in zip_file.namelist():
                 attributions = pd.read_csv(
                     zip_file.open("attributions.txt"),
                     dtype={
@@ -654,7 +676,7 @@ class GTFS:
         """Get a set of unique trips that visit a given stop
         
         :param stop_ids: A list of stop_ids to check for unique trips
-        :type stop_ids: list
+        :type stop_ids: list of strings or integers
         :param date: The date to calculate.
         :type date: :py:mod:`datetime.date`
         :param start_time: The time of day to start the calculation from.
@@ -671,11 +693,13 @@ class GTFS:
         # Start by filtering all stop_trips by the given dateslice
         trips = self.day_trips(date)
 
+        stop_ids = [str(s) for s in stop_ids]
+
         # Now let's grab the stop_trips
         stop_trips = self.stop_times[(self.stop_times.trip_id.isin(trips.trip_id)) & (self.stop_times.stop_id.isin(stop_ids))]
 
         # We've got the stop times, so let's grab the unique trips
-        unique_trips = self.stop_trips.trip_id.unique()
+        unique_trips = stop_trips.trip_id.unique()
 
         return self.trips[self.trips.trip_id.isin(unique_trips)]
 

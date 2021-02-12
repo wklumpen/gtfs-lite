@@ -3,7 +3,7 @@ import pytest
 
 @pytest.fixture
 def feed_zipfile():
-    return r"data/SRTA GTFS-2020-06-29.zip"
+    return r"data/PATC-2020-02-23-12.zip"
 
 @pytest.fixture
 def test_date():

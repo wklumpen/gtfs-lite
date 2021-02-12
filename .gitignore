@@ -2,6 +2,7 @@
 data/
 *.zip
 *.csv
+.pypirc
 
 # VSCode stuff
 .vscode/
