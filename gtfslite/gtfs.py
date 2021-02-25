@@ -149,7 +149,8 @@ class GTFS:
                     'agency_timezone': str, 'agency_lang': str,
                     'agency_phone': str, 'agency_fare_url': str,
                     'agency_email': str
-                }
+                },
+                skipinitialspace=True
             )
             stops = pd.read_csv(
                 zip_file.open(filepaths["stops.txt"]),
@@ -160,7 +161,8 @@ class GTFS:
                     'parent_station': str, 'stop_timezone': str,
                     'wheelchair_boarding': 'Int64', 'level_id': str,
                     'platform_code': str
-                }
+                },
+                skipinitialspace=True
             )
             routes = pd.read_csv(
                 zip_file.open(filepaths["routes.txt"]),
@@ -169,7 +171,8 @@ class GTFS:
                     'route_long_name': str, 'route_desc': str,
                     'route_type': int, 'route_url': str, 'route_color': str,
                     'route_text_color': str, 'route_short_order': int
-                }
+                },
+                skipinitialspace=True
             )
             trips = pd.read_csv(
                 zip_file.open(filepaths["trips.txt"]),
@@ -178,7 +181,9 @@ class GTFS:
                     'trip_headsign': str, 'trip_short_name': str,
                     'direction_id': 'Int64', 'block_id': str, 'shape_id': str,
                     'wheelchair_accessible': 'Int64', 'bikes_allowed': 'Int64'
-                })
+                },
+                skipinitialspace=True
+            )
             stop_times = pd.read_csv(
                 zip_file.open(filepaths["stop_times.txt"]),
                 dtype={
@@ -187,6 +192,7 @@ class GTFS:
                     'pickup_type': 'Int64', 'drop_off_type': 'Int64', 
                     'shape_dist_traveled': float, 'timepoint': 'Int64'
                 },
+                skipinitialspace=True
             )
 
             if filepaths["calendar.txt"] in zip_file.namelist():
@@ -198,7 +204,8 @@ class GTFS:
                         'saturday': bool, 'sunday': bool, 'start_date': str,
                         'end_date': str
                     },
-                    parse_dates=['start_date', 'end_date']
+                    parse_dates=['start_date', 'end_date'],
+                    skipinitialspace=True
                 )
 
             else:
@@ -210,7 +217,8 @@ class GTFS:
                     dtype={
                         'service_id': str, 'date': str, 'exception_type': int
                     },
-                    parse_dates=['date']
+                    parse_dates=['date'],
+                    skipinitialspace=True
                 )
                 if calendar_dates.shape[0] == 0:
                     calendar_dates = None
@@ -224,7 +232,8 @@ class GTFS:
                         'fare_id': str, 'price': float, 'currency_type': str,
                         'payment_method': int, 'transfers': 'Int64',
                         'agency_id': str, 'transfer_duration': 'Int64'
-                    }
+                    },
+                    skipinitialspace=True
                 )
             else:
                 fare_attributes = None
@@ -235,7 +244,8 @@ class GTFS:
                     dtype={
                         'fare_id': str, 'route_id': str, 'origin_id': str,
                         'destination_id': str, 'contains_id': str
-                    }    
+                    },
+                    skipinitialspace=True    
                 )
             else:
                 fare_rules = None
@@ -247,7 +257,8 @@ class GTFS:
                         'shape_id': str, 'shape_pt_lat': float,
                         'shape_pt_lon': float, 'shape_pt_sequence': int,
                         'shape_dist_traveled': float
-                    }
+                    },
+                    skipinitialspace=True
                 )
             else:
                 shapes = None
@@ -259,7 +270,8 @@ class GTFS:
                         'trip_id': str, 'start_time': str, 'end_time': str,
                         'headway_secs': int, 'exact_times': int
                     },
-                    parse_dates=['start_time', 'end_time']
+                    parse_dates=['start_time', 'end_time'],
+                    skipinitialspace=True
                 )
             else:
                 frequencies = None
@@ -270,7 +282,8 @@ class GTFS:
                     dtype={
                         'from_stop_id': str, 'to_stop_id': str,
                         'transfer_type': 'Int64', 'min_transfer_time': 'Int64'
-                    }
+                    },
+                    skipinitialspace=True
                 )
             else:
                 transfers = None
@@ -285,7 +298,8 @@ class GTFS:
                         'traversal_time': 'Int64', 'stair_count': 'Int64',
                         'max_slope': 'float64', 'min_width': 'float64',
                         'signposted_as': str, 'reverse_signposted_as': str
-                    }
+                    },
+                    skipinitialspace=True
                 )
             else:
                 pathways = None
@@ -296,7 +310,8 @@ class GTFS:
                     dtype={
                         'level_id': str, 'level_index': float,
                         'level_name': str
-                    }
+                    },
+                    skipinitialspace=True
                 )
             else:
                 levels = None
@@ -308,7 +323,8 @@ class GTFS:
                         'table_name': str, 'field_name': str, 'language': str,
                         'translation': str, 'record_id': str,
                         'record_sub_id': str, 'field_value': str
-                    }
+                    },
+                    skipinitialspace=True
                 )
                 feed_info = pd.read_csv(
                     zip_file.open(filepaths["feed_info.txt"]),
@@ -318,7 +334,8 @@ class GTFS:
                         'feed_start_date': str, 'feed_end_date': str,
                         'feed_version': str, 'feed_contact_email': str,
                         'feed_contact_url': str
-                    }
+                    },
+                    skipinitialspace=True
                 )
             elif filepaths["feed_info.txt"] in zip_file.namelist():
                 feed_info = pd.read_csv(
@@ -329,7 +346,8 @@ class GTFS:
                         'feed_start_date': str, 'feed_end_date': str,
                         'feed_version': str, 'feed_contact_email': str,
                         'feed_contact_url': str
-                    }   
+                    },
+                    skipinitialspace=True   
                 )
                 translations=None
             else:
@@ -342,7 +360,8 @@ class GTFS:
                     dtype={
                         'attribution_id': str, 'agency_id': str, 
                         'route_id': str, 'trip_id': str,
-                    }
+                    },
+                    skipinitialspace=True
                 )
             else:
                 attributions = None
