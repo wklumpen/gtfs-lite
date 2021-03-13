@@ -1,4 +1,4 @@
-The GTFS Obect
+The GTFS Object
 ===============
 
 .. automodule:: gtfslite.gtfs

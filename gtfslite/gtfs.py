@@ -116,7 +116,7 @@ class GTFS:
         self.levels = levels
         self.attributions = attributions
         self.translations = translations
-        self.feed_into = feed_info
+        self.feed_info = feed_info
 
 
     @staticmethod
