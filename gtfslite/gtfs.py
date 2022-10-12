@@ -133,7 +133,6 @@ class GTFS:
 
             # Deal with nested files
             filepaths = dict()
-            print(REQUIRED_FILES + OPTIONAL_FILES)
             for req in REQUIRED_FILES + OPTIONAL_FILES:
                 filepaths[req] = None
             for file in zip_file.namelist():
