@@ -1,0 +1,14 @@
+name: gtfslite-dev
+
+channels:
+    - conda-forge
+
+dependencies:
+    - python=3.10
+    - pandas
+    # testing / dev / docs related
+    - black
+    - make
+    - pytest
+    - sphinx
+    - sphinx_rtd_theme
