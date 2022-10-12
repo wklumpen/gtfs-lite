@@ -52,7 +52,7 @@ class GTFS:
 
     :param fare_attributes: Fare information for a transit agency's routes.
     :type fare_attributes: :py:mod:`pandas.DataFrame`, optional
-    :param fare_rules: 	Rules to apply fares for itineraries.
+    :param fare_rules: Rules to apply fares for itineraries.
     :type fare_rules: :py:mod:`pandas.DataFrame`, optional
     :param shapes: Rules for mapping vehicle travel paths, sometimes referred 
         to as route alignments.
