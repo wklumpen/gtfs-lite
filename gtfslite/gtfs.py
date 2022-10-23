@@ -2,51 +2,71 @@ from zipfile import ZipFile
 import datetime
 import calendar
 import json
+import functools
 
 import pandas as pd
+
 
 class DateNotValidException(Exception):
     pass
 
+
 class FeedNotValidException(Exception):
     pass
 
+
+class DateNotSetException(Exception):
+    pass
+
+
 REQUIRED_FILES = [
-    'agency.txt', 'stops.txt', 'routes.txt', 'trips.txt', 'stop_times.txt'
-    ]
+    "agency.txt",
+    "stops.txt",
+    "routes.txt",
+    "trips.txt",
+    "stop_times.txt",
+]
 OPTIONAL_FILES = [
-    'calendar.txt', 'calendar_dates.txt', 'fare_attributes.txt', 
-    'fare_rules.txt', 'shapes.txt', 'frequencies.txt', 'transfers.txt', 
-    'pathways.txt', 'levels.txt', 'translations.txt', 'feed_info.txt', 
-    'attributions.txt'
-    ]
+    "calendar.txt",
+    "calendar_dates.txt",
+    "fare_attributes.txt",
+    "fare_rules.txt",
+    "shapes.txt",
+    "frequencies.txt",
+    "transfers.txt",
+    "pathways.txt",
+    "levels.txt",
+    "translations.txt",
+    "feed_info.txt",
+    "attributions.txt",
+]
 
 
 class GTFS:
-    """A representation of a single static GTFS feed and associated data. 
-    
+    """A representation of a single static GTFS feed and associated data.
+
     All parameters should be valid Pandas DataFrame objects that follow
     the structure corresponding to the dataset as defined by the GTFS
     standard (http://gtfs.org/reference/static).
 
     :param agency: Transit agencies with service represented in this dataset.
     :type agency: :py:mod:`pandas.DataFrame`
-    :param stops: Stops where vehicles pick up or drop off riders. Also defines 
+    :param stops: Stops where vehicles pick up or drop off riders. Also defines
         stations and station entrances.
     :type stops: :py:mod:`pandas.DataFrame`
-    :param routes: Transit routes. A route is a group of trips that are 
+    :param routes: Transit routes. A route is a group of trips that are
         displayed to riders as a single service.
     :type routes: :py:mod:`pandas.DataFrame`
-    :param trips: Trips for each route. A trip is a sequence of two or more 
+    :param trips: Trips for each route. A trip is a sequence of two or more
         stops that occur during a specific time period.
     :type trips: :py:mod:`pandas.DataFrame`
     :param stop_times: Times that a vehicle arrives at and departs from stops for each trip.
     :type stop_times: :py:mod:`pandas.DataFrame`
-    :param calendar: Service dates specified using a weekly schedule with 
-        start and end dates. This file is required unless all dates of service 
+    :param calendar: Service dates specified using a weekly schedule with
+        start and end dates. This file is required unless all dates of service
         are defined in calendar_dates.txt.
     :type calendar: :py:mod:`pandas.DataFrame`, conditionally required
-    :param calendar_dates: Exceptions for the services defined in `calendar`. 
+    :param calendar_dates: Exceptions for the services defined in `calendar`.
         If `calendar` is omitted, then calendar_dates.txt is required and must contain all dates of service.
     :type calendar_dates: :py:mod:`pandas.DataFrame`, conditionally required
 
@@ -54,45 +74,60 @@ class GTFS:
     :type fare_attributes: :py:mod:`pandas.DataFrame`, optional
     :param fare_rules: Rules to apply fares for itineraries.
     :type fare_rules: :py:mod:`pandas.DataFrame`, optional
-    :param shapes: Rules for mapping vehicle travel paths, sometimes referred 
+    :param shapes: Rules for mapping vehicle travel paths, sometimes referred
         to as route alignments.
     :type shapes: :py:mod:`pandas.DataFrame`, optional
-    :param frequencies: Headway (time between trips) for headway-based service 
+    :param frequencies: Headway (time between trips) for headway-based service
         or a compressed representation of fixed-schedule service.
     :type frequencies: :py:mod:`pandas.DataFrame`, optional
-    :param transfers: Rules for making connections at transfer points between 
+    :param transfers: Rules for making connections at transfer points between
         routes.
     :type transfers: :py:mod:`pandas.DataFrame`, optional
     :param pathways: Pathways linking together locations within stations.
     :type pathways: :py:mod:`pandas.DataFrame`, optional
     :param levels: Levels within stations.
     :type levels: :py:mod:`pandas.DataFrame`, optional
-    :param feed_info: Dataset metadata, including publisher, version, 
+    :param feed_info: Dataset metadata, including publisher, version,
         and expiration information.
-    :param translations: In regions that have multiple official languages, 
-        transit agencies/operators typically have language-specific names and 
-        web pages. In order to best serve riders in those regions, it is useful 
+    :param translations: In regions that have multiple official languages,
+        transit agencies/operators typically have language-specific names and
+        web pages. In order to best serve riders in those regions, it is useful
         for the dataset to include these language-dependent values..
     :type translations: :py:mod:`pandas.DataFrame`, optional
     :type feed_info: :py:mod:`pandas.DataFrame`, optional
     :param attributions: Dataset attributions.
     :type attributions: :py:mod:`pandas.DataFrame`, optional
-    
+
     :raises FeedNotValidException: An exception indicating an invalid feed.
     """
-    def __init__(self, agency, stops, routes, trips, stop_times, 
-        calendar=None, calendar_dates=None, fare_attributes=None, 
-        fare_rules=None, shapes=None, frequencies=None, transfers=None, 
-        pathways=None, levels=None, translations=None, feed_info=None, 
-        attributions=None):
-        """Constructs and validates the datasets for the GTFS object.
-        """
+
+    def __init__(
+        self,
+        agency,
+        stops,
+        routes,
+        trips,
+        stop_times,
+        calendar=None,
+        calendar_dates=None,
+        fare_attributes=None,
+        fare_rules=None,
+        shapes=None,
+        frequencies=None,
+        transfers=None,
+        pathways=None,
+        levels=None,
+        translations=None,
+        feed_info=None,
+        attributions=None,
+    ):
+        """Constructs and validates the datasets for the GTFS object."""
 
         # Mandatory Files
         self.agency = agency
-        self.stops = stops 
+        self.stops = stops
         self.routes = routes
-        self.trips = trips 
+        self.trips = trips
         self.stop_times = stop_times
 
         # Pairwise Mandatory Files
@@ -100,7 +135,9 @@ class GTFS:
         self.calendar_dates = calendar_dates
 
         if self.calendar is None and self.calendar_dates is None:
-            raise FeedNotValidException("One of calendar or calendar_dates is required.")
+            raise FeedNotValidException(
+                "One of calendar or calendar_dates is required."
+            )
 
         # Optional Files
         self.fare_attributes = fare_attributes
@@ -114,6 +151,8 @@ class GTFS:
         self.translations = translations
         self.feed_info = feed_info
 
+        # Set the analysis date as "date unaware"
+        self.date = None
 
     @staticmethod
     def load_zip(filepath):
@@ -125,7 +164,7 @@ class GTFS:
 
         :return: A :class:`GTFS` object with loaded and validated data.
         """
-        with ZipFile(filepath, 'r') as zip_file:
+        with ZipFile(filepath, "r") as zip_file:
 
             # Deal with nested files
             filepaths = dict()
@@ -140,68 +179,105 @@ class GTFS:
             agency = pd.read_csv(
                 zip_file.open(filepaths["agency.txt"]),
                 dtype={
-                    'agency_id': str, 'agency_name': str, 'agency_url': str,
-                    'agency_timezone': str, 'agency_lang': str,
-                    'agency_phone': str, 'agency_fare_url': str,
-                    'agency_email': str
+                    "agency_id": str,
+                    "agency_name": str,
+                    "agency_url": str,
+                    "agency_timezone": str,
+                    "agency_lang": str,
+                    "agency_phone": str,
+                    "agency_fare_url": str,
+                    "agency_email": str,
                 },
-                skipinitialspace=True
+                skipinitialspace=True,
             )
             stops = pd.read_csv(
                 zip_file.open(filepaths["stops.txt"]),
                 dtype={
-                    'stop_id': str, 'stop_code': str, 'stop_name': str,
-                    'stop_desc': str, 'stop_lat': float, 'stop_lon': float,
-                    'zone_id': str, 'stop_url': str, 'location_type': 'Int64',
-                    'parent_station': str, 'stop_timezone': str,
-                    'wheelchair_boarding': 'Int64', 'level_id': str,
-                    'platform_code': str
+                    "stop_id": str,
+                    "stop_code": str,
+                    "stop_name": str,
+                    "stop_desc": str,
+                    "stop_lat": float,
+                    "stop_lon": float,
+                    "zone_id": str,
+                    "stop_url": str,
+                    "location_type": "Int64",
+                    "parent_station": str,
+                    "stop_timezone": str,
+                    "wheelchair_boarding": "Int64",
+                    "level_id": str,
+                    "platform_code": str,
                 },
-                skipinitialspace=True
+                skipinitialspace=True,
             )
             routes = pd.read_csv(
                 zip_file.open(filepaths["routes.txt"]),
                 dtype={
-                    'route_id': str, 'agency_id': str, 'route_short_name': str,
-                    'route_long_name': str, 'route_desc': str,
-                    'route_type': int, 'route_url': str, 'route_color': str,
-                    'route_text_color': str, 'route_short_order': int
+                    "route_id": str,
+                    "agency_id": str,
+                    "route_short_name": str,
+                    "route_long_name": str,
+                    "route_desc": str,
+                    "route_type": int,
+                    "route_url": str,
+                    "route_color": str,
+                    "route_text_color": str,
+                    "route_short_order": int,
                 },
-                skipinitialspace=True
+                skipinitialspace=True,
             )
             trips = pd.read_csv(
                 zip_file.open(filepaths["trips.txt"]),
                 dtype={
-                    'route_id': str, 'service_id': str, 'trip_id': str,
-                    'trip_headsign': str, 'trip_short_name': str,
-                    'direction_id': 'Int64', 'block_id': str, 'shape_id': str,
-                    'wheelchair_accessible': 'Int64', 'bikes_allowed': 'Int64'
+                    "route_id": str,
+                    "service_id": str,
+                    "trip_id": str,
+                    "trip_headsign": str,
+                    "trip_short_name": str,
+                    "direction_id": "Int64",
+                    "block_id": str,
+                    "shape_id": str,
+                    "wheelchair_accessible": "Int64",
+                    "bikes_allowed": "Int64",
                 },
-                skipinitialspace=True
+                skipinitialspace=True,
             )
             stop_times = pd.read_csv(
                 zip_file.open(filepaths["stop_times.txt"]),
                 dtype={
-                    'trip_id': str, 'arrival_time': str, 'departure_time': str,
-                    'stop_id': str, 'stop_sequence': int, 'stop_headsign': str,
-                    'pickup_type': 'Int64', 'drop_off_type': 'Int64', 
-                    'shape_dist_traveled': float, 'timepoint': 'Int64'
+                    "trip_id": str,
+                    "arrival_time": str,
+                    "departure_time": str,
+                    "stop_id": str,
+                    "stop_sequence": int,
+                    "stop_headsign": str,
+                    "pickup_type": "Int64",
+                    "drop_off_type": "Int64",
+                    "shape_dist_traveled": float,
+                    "timepoint": "Int64",
                 },
-                skipinitialspace=True
+                skipinitialspace=True,
             )
 
             if filepaths["calendar.txt"] in zip_file.namelist():
                 calendar = pd.read_csv(
-                    zip_file.open(filepaths["calendar.txt"]), 
+                    zip_file.open(filepaths["calendar.txt"]),
                     dtype={
-                        'service_id': str,'monday': bool, 'tuesday': bool,
-                        'wednesday': bool, 'thursday': bool, 'friday': bool,
-                        'saturday': bool, 'sunday': bool, 'start_date': str,
-                        'end_date': str
+                        "service_id": str,
+                        "monday": bool,
+                        "tuesday": bool,
+                        "wednesday": bool,
+                        "thursday": bool,
+                        "friday": bool,
+                        "saturday": bool,
+                        "sunday": bool,
+                        "start_date": str,
+                        "end_date": str,
                     },
-                    parse_dates=['start_date', 'end_date'],
-                    skipinitialspace=True
+                    skipinitialspace=True,
                 )
+                calendar['start_date'] = pd.to_datetime(calendar['start_date']).dt.date
+                calendar['end_date'] = pd.to_datetime(calendar['end_date']).dt.date
 
             else:
                 calendar = None
@@ -209,14 +285,13 @@ class GTFS:
             if filepaths["calendar_dates.txt"] in zip_file.namelist():
                 calendar_dates = pd.read_csv(
                     zip_file.open(filepaths["calendar_dates.txt"]),
-                    dtype={
-                        'service_id': str, 'date': str, 'exception_type': int
-                    },
-                    parse_dates=['date'],
-                    skipinitialspace=True
+                    dtype={"service_id": str, "date": str, "exception_type": int},
+                    skipinitialspace=True,
                 )
                 if calendar_dates.shape[0] == 0:
                     calendar_dates = None
+                else:
+                    calendar_dates['date'] = pd.to_datetime(calendar_dates['date']).dt.date
             else:
                 calendar_dates = None
 
@@ -224,11 +299,15 @@ class GTFS:
                 fare_attributes = pd.read_csv(
                     zip_file.open(filepaths["fare_attributes.txt"]),
                     dtype={
-                        'fare_id': str, 'price': float, 'currency_type': str,
-                        'payment_method': int, 'transfers': 'Int64',
-                        'agency_id': str, 'transfer_duration': 'Int64'
+                        "fare_id": str,
+                        "price": float,
+                        "currency_type": str,
+                        "payment_method": int,
+                        "transfers": "Int64",
+                        "agency_id": str,
+                        "transfer_duration": "Int64",
                     },
-                    skipinitialspace=True
+                    skipinitialspace=True,
                 )
             else:
                 fare_attributes = None
@@ -237,23 +316,28 @@ class GTFS:
                 fare_rules = pd.read_csv(
                     zip_file.open(filepaths["fare_rules.txt"]),
                     dtype={
-                        'fare_id': str, 'route_id': str, 'origin_id': str,
-                        'destination_id': str, 'contains_id': str
+                        "fare_id": str,
+                        "route_id": str,
+                        "origin_id": str,
+                        "destination_id": str,
+                        "contains_id": str,
                     },
-                    skipinitialspace=True    
+                    skipinitialspace=True,
                 )
             else:
                 fare_rules = None
-            
+
             if filepaths["shapes.txt"] in zip_file.namelist():
                 shapes = pd.read_csv(
                     zip_file.open(filepaths["shapes.txt"]),
                     dtype={
-                        'shape_id': str, 'shape_pt_lat': float,
-                        'shape_pt_lon': float, 'shape_pt_sequence': int,
-                        'shape_dist_traveled': float
+                        "shape_id": str,
+                        "shape_pt_lat": float,
+                        "shape_pt_lon": float,
+                        "shape_pt_sequence": int,
+                        "shape_dist_traveled": float,
                     },
-                    skipinitialspace=True
+                    skipinitialspace=True,
                 )
             else:
                 shapes = None
@@ -262,11 +346,14 @@ class GTFS:
                 frequencies = pd.read_csv(
                     zip_file.open(filepaths["frequencies.txt"]),
                     dtype={
-                        'trip_id': str, 'start_time': str, 'end_time': str,
-                        'headway_secs': int, 'exact_times': int
+                        "trip_id": str,
+                        "start_time": str,
+                        "end_time": str,
+                        "headway_secs": int,
+                        "exact_times": int,
                     },
-                    parse_dates=['start_time', 'end_time'],
-                    skipinitialspace=True
+                    parse_dates=["start_time", "end_time"],
+                    skipinitialspace=True,
                 )
             else:
                 frequencies = None
@@ -275,10 +362,12 @@ class GTFS:
                 transfers = pd.read_csv(
                     zip_file.open(filepaths["transfers.txt"]),
                     dtype={
-                        'from_stop_id': str, 'to_stop_id': str,
-                        'transfer_type': 'Int64', 'min_transfer_time': 'Int64'
+                        "from_stop_id": str,
+                        "to_stop_id": str,
+                        "transfer_type": "Int64",
+                        "min_transfer_time": "Int64",
                     },
-                    skipinitialspace=True
+                    skipinitialspace=True,
                 )
             else:
                 transfers = None
@@ -287,26 +376,29 @@ class GTFS:
                 pathways = pd.read_csv(
                     zip_file.open(filepaths["pathways.txt"]),
                     dtype={
-                        'pathway_id': str, 'from_stop_id': str, 
-                        'to_stop_id': str, 'pathway_mode': int,
-                        'is_bidirectional': str, 'length': 'float64',
-                        'traversal_time': 'Int64', 'stair_count': 'Int64',
-                        'max_slope': 'float64', 'min_width': 'float64',
-                        'signposted_as': str, 'reverse_signposted_as': str
+                        "pathway_id": str,
+                        "from_stop_id": str,
+                        "to_stop_id": str,
+                        "pathway_mode": int,
+                        "is_bidirectional": str,
+                        "length": "float64",
+                        "traversal_time": "Int64",
+                        "stair_count": "Int64",
+                        "max_slope": "float64",
+                        "min_width": "float64",
+                        "signposted_as": str,
+                        "reverse_signposted_as": str,
                     },
-                    skipinitialspace=True
+                    skipinitialspace=True,
                 )
             else:
                 pathways = None
-            
+
             if filepaths["levels.txt"] in zip_file.namelist():
                 levels = pd.read_csv(
                     zip_file.open(filepaths["levels.txt"]),
-                    dtype={
-                        'level_id': str, 'level_index': float,
-                        'level_name': str
-                    },
-                    skipinitialspace=True
+                    dtype={"level_id": str, "level_index": float, "level_name": str},
+                    skipinitialspace=True,
                 )
             else:
                 levels = None
@@ -315,36 +407,48 @@ class GTFS:
                 translations = pd.read_csv(
                     zip_file.open(filepaths["translations.txt"]),
                     dtype={
-                        'table_name': str, 'field_name': str, 'language': str,
-                        'translation': str, 'record_id': str,
-                        'record_sub_id': str, 'field_value': str
+                        "table_name": str,
+                        "field_name": str,
+                        "language": str,
+                        "translation": str,
+                        "record_id": str,
+                        "record_sub_id": str,
+                        "field_value": str,
                     },
-                    skipinitialspace=True
+                    skipinitialspace=True,
                 )
                 feed_info = pd.read_csv(
                     zip_file.open(filepaths["feed_info.txt"]),
                     dtype={
-                        'feed_publisher_name': str, 'feed_publisher_url': str,
-                        'feed_lang': str, 'default_lang': str,
-                        'feed_start_date': str, 'feed_end_date': str,
-                        'feed_version': str, 'feed_contact_email': str,
-                        'feed_contact_url': str
+                        "feed_publisher_name": str,
+                        "feed_publisher_url": str,
+                        "feed_lang": str,
+                        "default_lang": str,
+                        "feed_start_date": str,
+                        "feed_end_date": str,
+                        "feed_version": str,
+                        "feed_contact_email": str,
+                        "feed_contact_url": str,
                     },
-                    skipinitialspace=True
+                    skipinitialspace=True,
                 )
             elif filepaths["feed_info.txt"] in zip_file.namelist():
                 feed_info = pd.read_csv(
                     zip_file.open(filepaths["feed_info.txt"]),
                     dtype={
-                        'feed_publisher_name': str, 'feed_publisher_url': str,
-                        'feed_lang': str, 'default_lang': str,
-                        'feed_start_date': str, 'feed_end_date': str,
-                        'feed_version': str, 'feed_contact_email': str,
-                        'feed_contact_url': str
+                        "feed_publisher_name": str,
+                        "feed_publisher_url": str,
+                        "feed_lang": str,
+                        "default_lang": str,
+                        "feed_start_date": str,
+                        "feed_end_date": str,
+                        "feed_version": str,
+                        "feed_contact_email": str,
+                        "feed_contact_url": str,
                     },
-                    skipinitialspace=True   
+                    skipinitialspace=True,
                 )
-                translations=None
+                translations = None
             else:
                 translations = None
                 feed_info = None
@@ -353,23 +457,50 @@ class GTFS:
                 attributions = pd.read_csv(
                     zip_file.open("attributions.txt"),
                     dtype={
-                        'attribution_id': str, 'agency_id': str, 
-                        'route_id': str, 'trip_id': str,
+                        "attribution_id": str,
+                        "agency_id": str,
+                        "route_id": str,
+                        "trip_id": str,
                     },
-                    skipinitialspace=True
+                    skipinitialspace=True,
                 )
             else:
                 attributions = None
 
-        return GTFS(agency, stops, routes, trips, stop_times, 
-            calendar=calendar, calendar_dates=calendar_dates, 
-            fare_attributes=fare_attributes, fare_rules=fare_rules, 
-            shapes=shapes, frequencies=frequencies, transfers=transfers,
-            pathways=pathways, levels=levels, translations=translations, 
-            feed_info=feed_info, attributions=attributions)
-    
+        return GTFS(
+            agency,
+            stops,
+            routes,
+            trips,
+            stop_times,
+            calendar=calendar,
+            calendar_dates=calendar_dates,
+            fare_attributes=fare_attributes,
+            fare_rules=fare_rules,
+            shapes=shapes,
+            frequencies=frequencies,
+            transfers=transfers,
+            pathways=pathways,
+            levels=levels,
+            translations=translations,
+            feed_info=feed_info,
+            attributions=attributions,
+        )
+
+    def date_aware(func):
+        @functools.wraps(func)
+        def wrapper(self, *args, **kwargs):
+            if "arrival_datetime" not in self.stop_times.columns or self.date is None:
+                raise DateNotSetException(
+                    f"Calling {func.__name__} requires setting an analysis date with set_date first"
+                )
+            value = func(self, *args, **kwargs)
+            return value
+
+        return wrapper
+
     def summary(self):
-        """ Assemble a series of attributes summarizing the GTFS feed with the
+        """Assemble a series of attributes summarizing the GTFS feed with the
         following columns:
 
         * *agencies*: list of agencies in feed
@@ -377,110 +508,125 @@ class GTFS:
         * *total_routes*: the total number of routes in the feed
         * *total_trips*: the total number of trips in the feed
         * *total_stops_made*: the total number of stop_times events
-        * *first_date*: the first date the feed is valid for
-        * *last_date*: the last date the feed is valid for
-        * *total_shapes* (optional): the total number of shapes. 
+        * *first_date*: (`datetime.date`) the first date the feed is valid for
+        * *last_date*: (`datetime.date`) the last date the feed is valid for
+        * *total_shapes* (optional): the total number of shapes.
 
         :returns: A :py:mod:`pandas.Series` containing the relevant data.
         """
 
         summary = pd.Series(dtype=str)
-        summary['agencies'] = self.agency.agency_name.tolist()
-        summary['total_stops'] = self.stops.shape[0]
-        summary['total_routes'] = self.routes.shape[0]
-        summary['total_trips'] = self.trips.shape[0]
-        summary['total_stops_made'] = self.stop_times.shape[0]
+        summary["agencies"] = self.agency.agency_name.tolist()
+        summary["total_stops"] = self.stops.shape[0]
+        summary["total_routes"] = self.routes.shape[0]
+        summary["total_trips"] = self.trips.shape[0]
+        summary["total_stops_made"] = self.stop_times.shape[0]
         if self.calendar is not None:
-            summary['first_date'] = self.calendar.start_date.min()
-            summary['last_date'] = self.calendar.end_date.max()
+            summary["first_date"] = self.calendar.start_date.min()
+            summary["last_date"] = self.calendar.end_date.max()
         else:
-            summary['first_date'] = self.calendar_dates.date.min()
-            summary['last_date'] = self.calendar_dates.date.max()
+            summary["first_date"] = self.calendar_dates.date.min()
+            summary["last_date"] = self.calendar_dates.date.max()
         if self.shapes is not None:
-            summary['total_shapes'] = self.shapes.shape[0]
+            summary["total_shapes"] = self.shapes.shape[0]
 
         return summary
 
-    def valid_date(self, date):
+    def set_date(self, date):
+        """Set the date for date-aware analyses
+
+        Parameters
+        ----------
+        date : `datetime.date`
+            The representative date of analysis. Note that this can include data
+            that runs into the following day, depending on the agency service
+            period.
+        """
+        # We need a datetime for this, not a date, but we want it at midnight
+        dt = datetime.datetime(date.year, date.month, date.day)
+        self.date = date
+        self.stop_times["arrival_datetime"] = dt + pd.to_timedelta(
+            self.stop_times["arrival_time"]
+        )
+        self.stop_times["departure_datetime"] = dt + pd.to_timedelta(
+            self.stop_times["departure_time"]
+        )
+
+    def valid_date(self, date: datetime.date):
         """Checks whether the provided date falls within the feed's date range
-        
-        :param date: A datetime object with the date to be validated.
-        :type date: :py:mod:`datetime.date`
-        :return: `True` if the date is a valid one, `False` otherwise.
-        :rtype: bool
+
+        Parameters
+        ----------
+        date : `datetime.date` or `datetime.datetime`
+            A date or datetime object to be validated against the feed
+
+        Returns
+        -------
+        bool
+            Whether the date is valid or not.
         """
 
         summary = self.summary()
-        if type(date) == str:
-            date = datetime.datetime.strptime(date, "%Y%m%d")
         if summary.first_date > date or summary.last_date < date:
             return False
         else:
             return True
 
-    def day_trips(self, date):
+    def date_trips(self, date: datetime.date) -> pd.DataFrame:
         """Finds all the trips that occur on a specified day. This method
         accounts for exceptions included in the `calendar_dates` dataset.
 
-        :param date: The day to check
-        :type date: :py:mod:`datetime.date`
-
-        :return: A slice of the `trips` dataframe which corresponds to the
-            provided date.
-        :rtype: :py:mod:`pandas.DataFrame`
+        Parameters
+        ----------
+        date : `datetime.date`
+            The service day to count trips on
+        
+        Returns
+        -------
+        `DataFrame`
+            A dataframe of trips which are run on the provided date.
         """
-
-        # First, get all standard trips that run on that particular day of the week
+        
         if not self.valid_date(date):
             raise DateNotValidException
+            # TODO: Move this to a decorator
 
         dayname = date.strftime("%A").lower()
-        date_compare = pd.to_datetime(date)
+
         if self.calendar is not None:
-            service_ids = self.calendar[(self.calendar[dayname] == 1) & (self.calendar.start_date <= date_compare) & (self.calendar.end_date >= date_compare)].service_id
+            # Get all the service_ids for the desired day of the week
+            service_ids = self.calendar[
+                (self.calendar[dayname] == 1)
+                & (self.calendar.start_date <= date)
+                & (self.calendar.end_date >= date)
+            ].service_id.tolist()
             if self.calendar_dates is not None:
-                service_ids = service_ids.append(self.calendar_dates[(self.calendar_dates.date == date_compare) & (self.calendar_dates.exception_type == 1)].service_id)
-                service_ids = service_ids[~service_ids.isin(self.calendar_dates[(self.calendar_dates.date == date_compare) & (self.calendar_dates.exception_type == 2)].service_id)]
+                # Add service ids in the calendar_dates
+                service_ids.append(
+                    self.calendar_dates[
+                        (self.calendar_dates.date == date)
+                        & (self.calendar_dates.exception_type == 1)
+                    ].service_id.tolist()
+                )
+                # Remove service ids from the calendar dates
+                remove_service_ids = self.calendar_dates[
+                            (self.calendar_dates.date == date)
+                            & (self.calendar_dates.exception_type == 2)
+                        ].service_id.tolist()
+
+                service_ids = [i for i in service_ids if i not in remove_service_ids]
         else:
-            service_ids = self.calendar_dates[(self.calendar_dates.date == date_compare) & (self.calendar_dates.exception_type == 1)].service_id
+            service_ids = self.calendar_dates[
+                (self.calendar_dates.date == date)
+                & (self.calendar_dates.exception_type == 1)
+            ].service_id.tolist()
         return self.trips[self.trips.service_id.isin(service_ids)]
 
-    def stop_summary(self, date, stop_id):
-        """Assemble a series of attributes summarizing a stop on a particular
-        day. The following columns are returned:
-
-        * *stop_id*: The ID of the stop summarized
-        * *total_visits*: The total number of times a stop is visited
-        * *first_arrival*: The earliest arrival of the bus for the day
-        * *last_arrival*: The latest arrival of the bus for the day
-        * *service_time*: The total service span, in hours
-        * *average_headway*: Average time in minutes between arrivals
-
-        :param date: The day to summarize
-        :type date: :py:mod:`datetime.date`
-        :param stop_id: The ID of the stop to summarize.
-        :type stop_id: str
-        :return: A :py:mod:`pandas.Series` object containing the summarized
-            data.
-        """
-
-        # Create a summary of stops for a given stop_id
-
-        trips = self.day_trips(date)
-        stop_times = self.stop_times[self.stop_times.trip_id.isin(trips.trip_id) & (self.stop_times.stop_id == stop_id)]
-
-        summary = self.stops[self.stops.stop_id == stop_id].iloc[0]
-        summary['total_visits'] = len(stop_times.index)
-        summary['first_arrival'] = stop_times.arrival_time.min()
-        summary['last_arrival'] = stop_times.arrival_time.max()
-        summary['service_time'] = (int(summary.last_arrival.split(":")[0]) + int(summary.last_arrival.split(":")[1])/60.0 + int(summary.last_arrival.split(":")[2])/3600.0) - (int(stop_times.arrival_time.min().split(":")[0]) + int(stop_times.arrival_time.min().split(":")[1])/60.0 + int(stop_times.arrival_time.min().split(":")[2])/3600.0)
-        summary['average_headway'] = (summary.service_time/summary.total_visits)*60
-        return summary
-
+    @date_aware
     def route_summary(self, date, route_id):
         """Assemble a series of attributes summarizing a route on a particular
-        day. 
-        
+        day.
+
         The following columns are returned:
         * *route_id*: The ID of the route summarized
         * *total_trips*: The total number of trips made on the route that day
@@ -495,30 +641,47 @@ class GTFS:
             The calendar date to summarize.
         route_id : str
             The ID of the route to summarize
-        
+
         Returns
         -------
         `pandas.Series`
             A series with summary attributes for the date
         """
 
-        trips = self.day_trips(date)
+        trips = self.date_trips(date)
         trips = trips[trips.route_id == route_id]
         stop_times = self.stop_times[self.stop_times.trip_id.isin(trips.trip_id)]
         summary = pd.Series()
-        summary['route_id'] = route_id
-        summary['total_trips'] = len(trips.index)
-        summary['first_departure'] = stop_times.departure_time.min()
-        summary['last_arrival'] = stop_times.arrival_time.max()
-        summary['service_time'] = (int(summary.last_arrival.split(":")[0]) + int(summary.last_arrival.split(":")[1])/60.0 + int(summary.last_arrival.split(":")[2])/3600.0) - (int(summary.first_departure.split(":")[0]) + int(summary.first_departure.split(":")[1])/60.0 + int(summary.first_departure.split(":")[2])/3600.0)
+        summary["route_id"] = route_id
+        summary["total_trips"] = len(trips.index)
+        summary["first_departure"] = stop_times.departure_time.min()
+        summary["last_arrival"] = stop_times.arrival_time.max()
+        summary["service_time"] = (
+            int(summary.last_arrival.split(":")[0])
+            + int(summary.last_arrival.split(":")[1]) / 60.0
+            + int(summary.last_arrival.split(":")[2]) / 3600.0
+        ) - (
+            int(summary.first_departure.split(":")[0])
+            + int(summary.first_departure.split(":")[1]) / 60.0
+            + int(summary.first_departure.split(":")[2]) / 3600.0
+        )
         stop_id = stop_times.iloc[0].stop_id
         min_dep = stop_times[stop_times.stop_id == stop_id].departure_time.min()
         max_arr = stop_times[stop_times.stop_id == stop_id].arrival_time.max()
         visits = stop_times[stop_times.stop_id == stop_id].trip_id.count()
-        route_headway = int(max_arr.split(":")[0]) + int(max_arr.split(":")[1])/60.0 + int(max_arr.split(":")[2])/3600.0 - (int(min_dep.split(":")[0]) + int(min_dep.split(":")[1])/60.0 + int(min_dep.split(":")[2])/3600.0)
-        summary['average_headway'] = 60*route_headway/visits
+        route_headway = (
+            int(max_arr.split(":")[0])
+            + int(max_arr.split(":")[1]) / 60.0
+            + int(max_arr.split(":")[2]) / 3600.0
+            - (
+                int(min_dep.split(":")[0])
+                + int(min_dep.split(":")[1]) / 60.0
+                + int(min_dep.split(":")[2]) / 3600.0
+            )
+        )
+        summary["average_headway"] = 60 * route_headway / visits
         return summary
-    
+
     def routes_summary(self, date):
         """Summarizes all routes in a given day. The columns of the resulting
         dataset match the columns of :func:`route_summary`
@@ -529,32 +692,56 @@ class GTFS:
             data.
         """
 
-        trips = self.day_trips(date)
-        if "direction_id" in trips.columns: 
+        trips = self.date_trips(date)
+        if "direction_id" in trips.columns:
             trips = trips[trips.direction_id == 0]
         stop_times = self.stop_times[self.stop_times.trip_id.isin(trips.trip_id)]
         stop_times = pd.merge(stop_times, trips, on="trip_id", how="left")
-        route_trips = trips[["route_id", "trip_id"]].groupby("route_id", as_index=False).count()
-        route_trips['trips'] = route_trips.trip_id
-        first_departures = stop_times[["route_id", "departure_time"]].groupby("route_id", as_index=False).min()
-        last_arrivals = stop_times[["route_id", "arrival_time"]].groupby("route_id", as_index=False).max()
+        route_trips = (
+            trips[["route_id", "trip_id"]].groupby("route_id", as_index=False).count()
+        )
+        route_trips["trips"] = route_trips.trip_id
+        first_departures = (
+            stop_times[["route_id", "departure_time"]]
+            .groupby("route_id", as_index=False)
+            .min()
+        )
+        last_arrivals = (
+            stop_times[["route_id", "arrival_time"]]
+            .groupby("route_id", as_index=False)
+            .max()
+        )
         summary = pd.merge(route_trips, first_departures, on=["route_id"])
         summary = pd.merge(summary, last_arrivals, on=["route_id"])
-        summary['service_time'] = (summary.arrival_time.str.split(":", -1, expand=True)[0].astype(int) + summary.arrival_time.str.split(":", -1, expand=True)[1].astype(int)/60.0 + summary.arrival_time.str.split(":", -1, expand=True)[2].astype(int)/3600.0) - \
-            (summary.departure_time.str.split(":", -1, expand=True)[0].astype(int) + summary.departure_time.str.split(":", -1, expand=True)[1].astype(int)/60.0 + summary.departure_time.str.split(":", -1, expand=True)[2].astype(int)/3600.0)
-        summary['average_headway'] = 60*summary.service_time/summary.trips
-        summary["last_arrival"] = summary.arrival_time 
+        summary["service_time"] = (
+            summary.arrival_time.str.split(":", -1, expand=True)[0].astype(int)
+            + summary.arrival_time.str.split(":", -1, expand=True)[1].astype(int) / 60.0
+            + summary.arrival_time.str.split(":", -1, expand=True)[2].astype(int)
+            / 3600.0
+        ) - (
+            summary.departure_time.str.split(":", -1, expand=True)[0].astype(int)
+            + summary.departure_time.str.split(":", -1, expand=True)[1].astype(int)
+            / 60.0
+            + summary.departure_time.str.split(":", -1, expand=True)[2].astype(int)
+            / 3600.0
+        )
+        summary["average_headway"] = 60 * summary.service_time / summary.trips
+        summary["last_arrival"] = summary.arrival_time
         summary["first_departure"] = summary.departure_time
-        summary = summary[["route_id", "trips", "first_departure", "last_arrival", "average_headway"]]
+        summary = summary[
+            ["route_id", "trips", "first_departure", "last_arrival", "average_headway"]
+        ]
         summary = pd.merge(self.routes, summary, on="route_id", how="inner")
         return summary
-    
-    def service_hours(self, date, start_time=datetime.time(0, 0), end_time=datetime.time(23, 59)):
+
+    def service_hours(
+        self, date, start_time=datetime.time(0, 0), end_time=datetime.time(23, 59)
+    ):
         """Computes the total service hours delivered for a specified date
         within a specified time slice.
 
-        **Note:** This function currently does not support end_times that 
-        are past 23:59. A new time slice for the following day must be 
+        **Note:** This function currently does not support end_times that
+        are past 23:59. A new time slice for the following day must be
         calculated separately.
 
         :param date: The date to calculate.
@@ -580,91 +767,235 @@ class GTFS:
         # Start with the calendar
         if self.calendar is not None:
             dow = date.strftime("%A").lower()
-            service_ids.extend(self.calendar[
-                (self.calendar[dow] == 1) & 
-                (self.calendar.start_date.dt.date <= date) & 
-                (self.calendar.end_date.dt.date >= date)
-            ].service_id.tolist())
-        
+            service_ids.extend(
+                self.calendar[
+                    (self.calendar[dow] == 1)
+                    & (self.calendar.start_date.dt.date <= date)
+                    & (self.calendar.end_date.dt.date >= date)
+                ].service_id.tolist()
+            )
+
         # Now handle exceptions if they are there
         if self.calendar_dates is not None:
-            to_add = service_ids.extend(self.calendar_dates[
-                (self.calendar_dates.date.dt == date) & 
-                self.calendar_dates.exception_type == 1
-            ].service_id.tolist())
-            to_del = service_ids.extend(self.calendar_dates[
-                (self.calendar_dates.date.dt == date) & 
-                self.calendar_dates.exception_type == 2
-            ].service_id.tolist())
+            to_add = service_ids.extend(
+                self.calendar_dates[
+                    (self.calendar_dates.date.dt == date)
+                    & self.calendar_dates.exception_type
+                    == 1
+                ].service_id.tolist()
+            )
+            to_del = service_ids.extend(
+                self.calendar_dates[
+                    (self.calendar_dates.date.dt == date)
+                    & self.calendar_dates.exception_type
+                    == 2
+                ].service_id.tolist()
+            )
 
             if to_add is not None:
                 service_ids.extend(to_add)
             # Remove those that should be removed
             if to_del is not None:
                 [service_ids.remove(i) for i in to_del]
-        
+
         # Grab all the trips
         trips = self.trips[self.trips.service_id.isin(service_ids)]
-        
+
         # Grab all the stop_times
-        stop_times = self.stop_times[self.stop_times.trip_id.isin(trips.trip_id) & (self.stop_times.arrival_time >= start) & (self.stop_times.arrival_time <= end)]
-        grouped = stop_times[['trip_id', 'arrival_time']].groupby('trip_id', as_index=False).agg({'arrival_time': ['max', 'min']})
-        grouped.columns = ['trip_id', 'max', 'min']
+        stop_times = self.stop_times[
+            self.stop_times.trip_id.isin(trips.trip_id)
+            & (self.stop_times.arrival_time >= start)
+            & (self.stop_times.arrival_time <= end)
+        ]
+        grouped = (
+            stop_times[["trip_id", "arrival_time"]]
+            .groupby("trip_id", as_index=False)
+            .agg({"arrival_time": ["max", "min"]})
+        )
+        grouped.columns = ["trip_id", "max", "min"]
         grouped.dropna()
-        max_split = grouped['max'].str.split(":", expand=True).astype(int)
-        min_split = grouped['min'].str.split(":", expand=True).astype(int)
-        grouped['diff'] = (max_split[0] - min_split[0]) + (max_split[1] - min_split[1])/60 + (max_split[2] - min_split[2])/3600
-        return(grouped['diff'].sum())
+        max_split = grouped["max"].str.split(":", expand=True).astype(int)
+        min_split = grouped["min"].str.split(":", expand=True).astype(int)
+        grouped["diff"] = (
+            (max_split[0] - min_split[0])
+            + (max_split[1] - min_split[1]) / 60
+            + (max_split[2] - min_split[2]) / 3600
+        )
+        return grouped["diff"].sum()
+
+    def stop_summary(
+        self, stop_id: str, start_time: str = None, end_time: str = None
+    ) -> pd.Series:
+        """Assemble a series of attributes summarizing a stop on a particular
+        day. The following columns are returned:
+
+        * *stop_id*: The ID of the stop summarized
+        * *total_visits*: The total number of times a stop is visited
+        * *first_arrival*: The earliest arrival of the bus for the day
+        * *last_arrival*: The latest arrival of the bus for the day
+        * *service_time*: The total service span, in hours
+        * *average_headway*: Average time in minutes between arrivals
+
+        **Note** This is a test warning
+
+        Parameters
+        ----------
+        stop_id : str
+            The ID of the stop to summarize
+        """
+
+        # Create a summary of stops for a given stop_id
+        date = self.date
+        trips = self.date_trips(date)
+        stop_times = self.stop_times[
+            self.stop_times.trip_id.isin(trips.trip_id)
+            & (self.stop_times.stop_id == stop_id)
+        ]
+
+        summary = self.stops[self.stops.stop_id == stop_id].iloc[0]
+        summary["total_visits"] = len(stop_times.index)
+        summary["first_arrival"] = stop_times.arrival_time.min()
+        summary["last_arrival"] = stop_times.arrival_time.max()
+        summary["service_time"] = (
+            int(summary.last_arrival.split(":")[0])
+            + int(summary.last_arrival.split(":")[1]) / 60.0
+            + int(summary.last_arrival.split(":")[2]) / 3600.0
+        ) - (
+            int(stop_times.arrival_time.min().split(":")[0])
+            + int(stop_times.arrival_time.min().split(":")[1]) / 60.0
+            + int(stop_times.arrival_time.min().split(":")[2]) / 3600.0
+        )
+        summary["average_headway"] = (summary.service_time / summary.total_visits) * 60
+        return summary
+
+    def stop_times_at_stop(
+        self,
+        stop_id: str,
+        date: datetime.date,
+        start_time: str = None,
+        end_time: str = None,
+        time_field: str = "arrival_time",
+    ) -> pd.DataFrame:
+        """Get the stop times that visit a particular stop over a day or a subset of the day.
+
+        Parameters
+        ----------
+        stop_id : str
+            The stop ID to analyse
+        date : datetime.date
+            The calendar date to analyse
+        start_time : str, optional
+            A string representation (HH:MM:SS) of the number of hours since midnight on the
+            analysis date. Can be greater than 24:00:00. A `None` value will
+            assume consider all trips from the start of the service day, by default None
+        end_time : str, optional
+            A string representation (HH:MM:SS) of the number of hours since midnight on the
+            analysis date. Can be greater than 24:00:00. A `None` value will
+            consider all trips through the end of the service day, by default None
+        time_field : str, optional
+            The name of the time column in `stop_times` to consider, either 'arrival_time' or
+            'departure_time'. By default 'arrival_time'
+
+        Notes
+        -----
+        This is an example of an indented section. It's like any other section,
+        but the body is indented to help it stand out from surrounding text.
+
+
+        Returns
+        -------
+        pd.DataFrame
+            A copy of the `stop_trips` dataframe containing the filtered stop
+            events.
+        """
+
+        stop_id = str(stop_id)
+        stop_times = self.stop_times[
+            self.stop_times.trip_id.isin(self.date_trips(date).trip_id)
+            & (self.stop_times.stop_id == stop_id)
+        ].copy()
+        # Filter by start time and end time if needed
+        if start_time != None:
+            stop_times = stop_times[stop_times[time_field] >= start_time]
+        if end_time != None:
+            stop_times = stop_times[stop_times[time_field] <= end_time]
+        
+        return stop_times
 
     def trip_distribution(self, start_date, end_date):
         """Summarize the distribution of service by day of week for a given
         date range. Repeated days of the week will be counted multiple times.
-        
+
         :param start_date: The start date for the summary
         :type start_date: :py:mod:`datetime.date`
         :param end_date: The end date for the summary
         :type end_date: :py:mod:`datetime.date`
-        
-        :return: A :py:mod:`pandas.Series` object containing as indices the 
-            days of the week and as values the total number of trips found in the 
+
+        :return: A :py:mod:`pandas.Series` object containing as indices the
+            days of the week and as values the total number of trips found in the
             time slice.
         """
 
-        days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
-        dist = pd.Series(
-            index=days, 
-            name='trips',
-            dtype='int'
-            )
+        days = [
+            "monday",
+            "tuesday",
+            "wednesday",
+            "thursday",
+            "friday",
+            "saturday",
+            "sunday",
+        ]
+        dist = pd.Series(index=days, name="trips", dtype="int")
 
         # Start with calendar:
         if self.calendar is not None:
             for dow in dist.index:
                 # Get rows where that DOW happens in the date range
-                for idx, service in self.calendar[(self.calendar[dow] == True) & (self.calendar.start_date.dt.date <= start_date) & (self.calendar.end_date.dt.date >= end_date)].iterrows():
+                for idx, service in self.calendar[
+                    (self.calendar[dow] == True)
+                    & (self.calendar.start_date.dt.date <= start_date)
+                    & (self.calendar.end_date.dt.date >= end_date)
+                ].iterrows():
                     # We'll need the number of a given days of the week in that range to multiply the calendar.
                     week = {}
-                    for i in range(((end_date + datetime.timedelta(days=1)) - start_date).days):
-                        day       = calendar.day_name[(start_date + datetime.timedelta(days=i+1)).weekday()].lower()
+                    for i in range(
+                        ((end_date + datetime.timedelta(days=1)) - start_date).days
+                    ):
+                        day = calendar.day_name[
+                            (start_date + datetime.timedelta(days=i + 1)).weekday()
+                        ].lower()
                         week[day] = week[day] + 1 if day in week else 1
 
-                     # Get trips with that service id and add them to the total, only if that day is in there.
+                    # Get trips with that service id and add them to the total, only if that day is in there.
                     if dow in week.keys():
-                        dist[dow] = dist[dow] + week[dow]*self.trips[self.trips.service_id == service.service_id].trip_id.count()
+                        dist[dow] = (
+                            dist[dow]
+                            + week[dow]
+                            * self.trips[
+                                self.trips.service_id == service.service_id
+                            ].trip_id.count()
+                        )
 
         # Now check exceptions to add and remove
         if self.calendar_dates is not None:
             # Start by going through all the calendar dates within the date range
             # cd = self.calendar_dates.copy()
-            for index, cd in self.calendar_dates[(self.calendar_dates['date'].dt.date >= start_date) & (self.calendar_dates['date'].dt.date <= end_date)].iterrows():
-                if cd['exception_type'] == 1:
-                    dist[days[cd['date'].dayofweek]] += self.trips[self.trips.service_id == cd['service_id']].trip_id.count()
+            for index, cd in self.calendar_dates[
+                (self.calendar_dates["date"].dt.date >= start_date)
+                & (self.calendar_dates["date"].dt.date <= end_date)
+            ].iterrows():
+                if cd["exception_type"] == 1:
+                    dist[days[cd["date"].dayofweek]] += self.trips[
+                        self.trips.service_id == cd["service_id"]
+                    ].trip_id.count()
                 else:
-                    dist[days[cd['date'].dayofweek]] -= self.trips[self.trips.service_id == cd['service_id']].trip_id.count()
+                    dist[days[cd["date"].dayofweek]] -= self.trips[
+                        self.trips.service_id == cd["service_id"]
+                    ].trip_id.count()
 
         return dist
 
-    def route_stops_inside(self, path_to_shape, format='geojson'):
+    def route_stops_inside(self, path_to_shape, format="geojson"):
         """Count the number of stops a given route has inside a geographical
         boundary or shape.
 
@@ -680,32 +1011,46 @@ class GTFS:
         """
 
         from shapely.geometry import Point, shape, GeometryCollection
-        
+
         count = 0
         # For starters, let's load a bounding box and check how many stops are in the point
-        if format == 'geojson':
+        if format == "geojson":
             with open(path_to_shape) as f:
                 features = json.load(f)["features"]
-                boundary = GeometryCollection([shape(feature["geometry"]).buffer(0) for feature in features])
+                boundary = GeometryCollection(
+                    [shape(feature["geometry"]).buffer(0) for feature in features]
+                )
                 routes = []
                 counts = []
                 for idx, route in self.routes.iterrows():
                     # Get all the stops on trips for that route.
-                    stops = self.stop_times[self.stop_times.trip_id.isin(self.trips[self.trips.route_id == route.route_id].trip_id)].stop_id.unique()
-                # NOTE: buffer(0) is a trick for fixing scenarios where polygons have overlapping coordinates 
+                    stops = self.stop_times[
+                        self.stop_times.trip_id.isin(
+                            self.trips[self.trips.route_id == route.route_id].trip_id
+                        )
+                    ].stop_id.unique()
+                    # NOTE: buffer(0) is a trick for fixing scenarios where polygons have overlapping coordinates
                     count = 0
-                    for idx, stop in self.stops[self.stops.stop_id.isin(stops)].iterrows():
+                    for idx, stop in self.stops[
+                        self.stops.stop_id.isin(stops)
+                    ].iterrows():
                         if Point(stop.stop_lon, stop.stop_lat).within(boundary):
                             count += 1
                     routes.append(route.route_id)
                     counts.append(count)
-        
+
         stop_count = pd.DataFrame(counts, index=routes)
         return stop_count
 
-    def trips_at_stops(self, stop_ids, date, start_time=datetime.time(0, 0), end_time=datetime.time(23, 59)):
+    def trips_at_stops(
+        self,
+        stop_ids,
+        date,
+        start_time=datetime.time(0, 0),
+        end_time=datetime.time(23, 59),
+    ):
         """Get a set of unique trips that visit a given stop
-        
+
         :param stop_ids: A list of stop_ids to check for unique trips
         :type stop_ids: list of strings or integers
         :param date: The date to calculate.
@@ -716,24 +1061,23 @@ class GTFS:
         :param end_time: The time of day to start the calculation from.
             Defaults to 23:59
         :type end_time: :py:mod:`datetime.time`, optional
-        
-        :return: A :py:mod:`pandas.DataFrame` as a subset of the 
+
+        :return: A :py:mod:`pandas.DataFrame` as a subset of the
             :py:attr:`GTFS.trips` dataframe.
         """
 
         # Start by filtering all stop_trips by the given dateslice
-        trips = self.day_trips(date)
+        trips = self.date_trips(date)
 
         stop_ids = [str(s) for s in stop_ids]
 
         # Now let's grab the stop_trips
-        stop_trips = self.stop_times[(self.stop_times.trip_id.isin(trips.trip_id)) & (self.stop_times.stop_id.isin(stop_ids))]
+        stop_trips = self.stop_times[
+            (self.stop_times.trip_id.isin(trips.trip_id))
+            & (self.stop_times.stop_id.isin(stop_ids))
+        ]
 
         # We've got the stop times, so let's grab the unique trips
         unique_trips = stop_trips.trip_id.unique()
 
         return self.trips[self.trips.trip_id.isin(unique_trips)]
-
-
-
-
