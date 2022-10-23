@@ -479,8 +479,9 @@ class GTFS:
 
     def route_summary(self, date, route_id):
         """Assemble a series of attributes summarizing a route on a particular
-        day. The following columns are returned:
+        day. 
         
+        The following columns are returned:
         * *route_id*: The ID of the route summarized
         * *total_trips*: The total number of trips made on the route that day
         * *first_departure*: The earliest departure of the bus for the day
@@ -488,12 +489,17 @@ class GTFS:
         * *service_time*: The total service span of the route, in hours
         * *average_headway*: Average time in minutes between trips on the route
 
-        :param date: The day to summarize.
-        :type date: :py:mod:`datetime.date`
-        :param route_id: The ID of the route to summarize
-        :type route_id: str
-        :return: A :py:mod:`pandas.Series` object containing the summarized 
-            data.
+        Parameters
+        ----------
+        date : `date`
+            The calendar date to summarize.
+        route_id : str
+            The ID of the route to summarize
+        
+        Returns
+        -------
+        `pandas.Series`
+            A series with summary attributes for the date
         """
 
         trips = self.day_trips(date)
@@ -574,12 +580,23 @@ class GTFS:
         # Start with the calendar
         if self.calendar is not None:
             dow = date.strftime("%A").lower()
-            service_ids.extend(self.calendar[(self.calendar[dow] == 1) & (self.calendar.start_date.dt.date <= date) & (self.calendar.end_date.dt.date >= date)].service_id.tolist())
+            service_ids.extend(self.calendar[
+                (self.calendar[dow] == 1) & 
+                (self.calendar.start_date.dt.date <= date) & 
+                (self.calendar.end_date.dt.date >= date)
+            ].service_id.tolist())
         
         # Now handle exceptions if they are there
         if self.calendar_dates is not None:
-            to_add = service_ids.extend(self.calendar_dates[(self.calendar_dates.date.dt == date) & self.calendar_dates.exception_type == 1].service_id.tolist())
-            to_del = service_ids.extend(self.calendar_dates[(self.calendar_dates.date.dt == date) & self.calendar_dates.exception_type == 2].service_id.tolist())
+            to_add = service_ids.extend(self.calendar_dates[
+                (self.calendar_dates.date.dt == date) & 
+                self.calendar_dates.exception_type == 1
+            ].service_id.tolist())
+            to_del = service_ids.extend(self.calendar_dates[
+                (self.calendar_dates.date.dt == date) & 
+                self.calendar_dates.exception_type == 2
+            ].service_id.tolist())
+
             if to_add is not None:
                 service_ids.extend(to_add)
             # Remove those that should be removed
