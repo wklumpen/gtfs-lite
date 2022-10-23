@@ -25,9 +25,9 @@ OPTIONAL_FILES = [
 class GTFS:
     """A representation of a single static GTFS feed and associated data. 
     
-    GTFS holds, as Pandas data frames, the various datasets as defined by the
-    GTFS static protocol (http://gtfs.org/reference/static). Optional datasets
-    are set to None if data is not passed.
+    All parameters should be valid Pandas DataFrame objects that follow
+    the structure corresponding to the dataset as defined by the GTFS
+    standard (http://gtfs.org/reference/static).
 
     :param agency: Transit agencies with service represented in this dataset.
     :type agency: :py:mod:`pandas.DataFrame`
@@ -86,10 +86,6 @@ class GTFS:
         pathways=None, levels=None, translations=None, feed_info=None, 
         attributions=None):
         """Constructs and validates the datasets for the GTFS object.
-        
-        All parameters should be valid Pandas DataFrame objects that follow
-        the structure corresponding to the dataset as defined by the GTFS
-        standard (http://gtfs.org/reference/static).
         """
 
         # Mandatory Files
