@@ -1,6 +1,8 @@
 # Data
-data/
 *.zip
+# Unignore testing zipfiles
+data/*
+!data/bart.zip
 *.csv
 .pypirc
 
