@@ -3,20 +3,15 @@ import datetime
 import calendar
 import json
 import functools
+import math
 
 import pandas as pd
 
-
-class DateNotValidException(Exception):
-    pass
-
-
-class FeedNotValidException(Exception):
-    pass
-
-
-class DateNotSetException(Exception):
-    pass
+from .exceptions import (
+    DateNotSetException,
+    DateNotValidException,
+    FeedNotValidException,
+)
 
 
 REQUIRED_FILES = [
@@ -26,6 +21,7 @@ REQUIRED_FILES = [
     "trips.txt",
     "stop_times.txt",
 ]
+
 OPTIONAL_FILES = [
     "calendar.txt",
     "calendar_dates.txt",
@@ -276,8 +272,8 @@ class GTFS:
                     },
                     skipinitialspace=True,
                 )
-                calendar['start_date'] = pd.to_datetime(calendar['start_date']).dt.date
-                calendar['end_date'] = pd.to_datetime(calendar['end_date']).dt.date
+                calendar["start_date"] = pd.to_datetime(calendar["start_date"]).dt.date
+                calendar["end_date"] = pd.to_datetime(calendar["end_date"]).dt.date
 
             else:
                 calendar = None
@@ -291,7 +287,9 @@ class GTFS:
                 if calendar_dates.shape[0] == 0:
                     calendar_dates = None
                 else:
-                    calendar_dates['date'] = pd.to_datetime(calendar_dates['date']).dt.date
+                    calendar_dates["date"] = pd.to_datetime(
+                        calendar_dates["date"]
+                    ).dt.date
             else:
                 calendar_dates = None
 
@@ -580,13 +578,13 @@ class GTFS:
         ----------
         date : `datetime.date`
             The service day to count trips on
-        
+
         Returns
         -------
         `DataFrame`
             A dataframe of trips which are run on the provided date.
         """
-        
+
         if not self.valid_date(date):
             raise DateNotValidException
             # TODO: Move this to a decorator
@@ -610,9 +608,9 @@ class GTFS:
                 )
                 # Remove service ids from the calendar dates
                 remove_service_ids = self.calendar_dates[
-                            (self.calendar_dates.date == date)
-                            & (self.calendar_dates.exception_type == 2)
-                        ].service_id.tolist()
+                    (self.calendar_dates.date == date)
+                    & (self.calendar_dates.exception_type == 2)
+                ].service_id.tolist()
 
                 service_ids = [i for i in service_ids if i not in remove_service_ids]
         else:
@@ -896,11 +894,6 @@ class GTFS:
             The name of the time column in `stop_times` to consider, either 'arrival_time' or
             'departure_time'. By default 'arrival_time'
 
-        Notes
-        -----
-        This is an example of an indented section. It's like any other section,
-        but the body is indented to help it stand out from surrounding text.
-
 
         Returns
         -------
@@ -919,21 +912,25 @@ class GTFS:
             stop_times = stop_times[stop_times[time_field] >= start_time]
         if end_time != None:
             stop_times = stop_times[stop_times[time_field] <= end_time]
-        
+
         return stop_times
 
     def trip_distribution(self, start_date, end_date):
         """Summarize the distribution of service by day of week for a given
         date range. Repeated days of the week will be counted multiple times.
 
-        :param start_date: The start date for the summary
-        :type start_date: :py:mod:`datetime.date`
-        :param end_date: The end date for the summary
-        :type end_date: :py:mod:`datetime.date`
+        Parameters
+        ----------
+        start_date : `datetime.date`
+            The start date for the summary (inclusive)
+        end_date : `datetime.date`
+            The end date for the summary
 
-        :return: A :py:mod:`pandas.Series` object containing as indices the
-            days of the week and as values the total number of trips found in the
-            time slice.
+        Returns
+        -------
+        `pandas.Series`
+            A series containing as indices the days of the week and as values
+            the total number of trips found in the time slice provided.
         """
 
         days = [
@@ -1042,28 +1039,149 @@ class GTFS:
         stop_count = pd.DataFrame(counts, index=routes)
         return stop_count
 
+    def route_frequency_matrix(
+        self,
+        date: datetime.date,
+        interval: int = 60,
+        start_time: str = None,
+        end_time: str = None,
+        time_field: str = "arrival_time"
+    ) -> pd.DataFrame:
+        """Generate a matrix of route headways throughout a given time period.
+
+        Produce a matrix of headways by a given interval (in minutes) for each
+        route_id throughout the service period of a given day.
+
+        Parameters
+        ----------
+        date : datetime.date
+            The service day to analyze
+        interval : int, optional
+            The number of minute bins to divide the day into, by default 60
+        start_time : str, optional
+            The start time of the analysis. Only trips which *start* after this
+            time will be included. Can be greater than 24:00:00.
+            A None value will consider all trips from the start of the
+            service day, by default None
+        end_time : str, optional
+            A string representation (HH:MM:SS) of the end time of the analysis.
+            Only trips which *end* before this analysis time will be included. '
+            Can be greater than 24:00:00. A None value will consider all trips 
+            through the end of the service day, by default None
+        time_field : str, optional
+            The name of the time column in `stop_times` to consider, either 'arrival_time' or
+            'departure_time'. By default 'arrival_time'
+
+        Returns
+        -------
+        pd.DataFrame
+            A dataframe containing as rows route IDs, and as columns hour slices.
+        """
+
+        # Start by getting all of the trips and stop events in a given date
+        trips = self.date_trips(date)
+        stop_times = self.stop_times[self.stop_times.trip_id.isin(trips.trip_id)]
+        
+        # Let's get the start_times of all trips
+        trip_start_times = stop_times[['trip_id', 'stop_sequence', 'arrival_time', 'departure_time']].sort_values(['trip_id', 'stop_sequence']).drop_duplicates('trip_id')
+        trip_end_times = stop_times[['trip_id', 'stop_sequence', 'arrival_time', 'departure_time']].sort_values(['trip_id', 'stop_sequence'], ascending=False).drop_duplicates('trip_id')
+        
+        # Filter out our slice
+        if start_time != None:
+            stop_times = stop_times[stop_times.trip_id.isin(trip_start_times[trip_start_times[time_field] >= start_time].trip_id)]
+        if end_time != None:
+            stop_times = stop_times[stop_times.trip_id.isin(trip_end_times[trip_end_times[time_field] <= end_time].trip_id)]
+        
+        # Now get the trips we're working with
+        trip_starts = trip_start_times[trip_start_times.trip_id.isin(stop_times.trip_id.unique())]
+        trip_starts = pd.merge(trip_starts, self.trips[['trip_id', 'route_id']], on='trip_id')
+        print(trip_starts)
+        # Set up a basis for the matrix slices
+        mx_start = [int(i) for i in stop_times[time_field].min().split(":")]
+        mx_end = [int(i) for i in stop_times[time_field].max().split(":")]
+
+        # We need a reference midnight
+        midnight = datetime.datetime.combine(date, datetime.datetime.min.time())
+        
+        # Now we convert them into datetime objects
+        start_dt = datetime.datetime.combine(date, datetime.datetime.min.time()) + datetime.timedelta(hours=mx_start[0], minutes=mx_start[1])
+        end_dt = datetime.datetime.combine(date, datetime.datetime.min.time()) + datetime.timedelta(hours=mx_end[0], minutes=mx_end[1])
+        
+        # Floor and ceiling our start and end dates to intervals
+        delta = datetime.timedelta(minutes=interval)
+        start_dt = datetime.datetime.min + math.floor((start_dt - datetime.datetime.min) / delta) * delta
+        end_dt = datetime.datetime.min + math.ceil((end_dt - datetime.datetime.min) / delta) * delta
+        column_count = int((end_dt - start_dt).total_seconds()/(60 * interval))
+        
+        slices = []
+        # Populate a matrix of values
+        for i in range(column_count):
+            # Determine the time slice
+            slice_start = start_dt + datetime.timedelta(minutes=(i * interval)) - midnight
+            slice_end = (start_dt + datetime.timedelta(minutes=((i + 1) * interval))) - midnight
+            
+            # Grab start formatting string
+            total_seconds = int(slice_start.total_seconds())
+            hours, remainder = divmod(total_seconds, 3600)
+            minutes, _ = divmod(remainder, 60)
+            slice_start_str = f"{hours:02}:{minutes:02}:00"
+            
+            # Grab end formatting string
+            total_seconds = int(slice_end.total_seconds())
+            hours, remainder = divmod(total_seconds, 3600)
+            minutes, _ = divmod(remainder, 60)
+            slice_end_str = f"{hours:02}:{minutes:02}:00"
+
+            # Now we get the trips that start within our slice
+            in_slice = trip_starts[(trip_starts[time_field] >= slice_start_str) & (trip_starts[time_field] < slice_end_str)]
+            slice_group = in_slice[['route_id', 'trip_id']].groupby('route_id', as_index=False).count()
+            slice_group['frequency'] = (slice_group['trip_id'] * (60.0 / interval)).astype(int)
+            slice_group['bin'] = f"{slice_start_str}-{slice_end_str}"
+            slices.append(slice_group[['route_id', 'bin', 'frequency']])
+        
+        # Assemble final matrix
+        mx = pd.concat(slices, axis='index')
+        mx = mx.fillna(0)
+        return mx.reset_index(drop=True)
+
     def trips_at_stops(
         self,
-        stop_ids,
-        date,
-        start_time=datetime.time(0, 0),
-        end_time=datetime.time(23, 59),
-    ):
-        """Get a set of unique trips that visit a given stop
+        stop_ids: list,
+        date: datetime.date,
+        start_time: str = None,
+        end_time: str = None,
+        time_filed: str = "arrival_time",
+    ) -> pd.DataFrame:
+        """Get a set of unique trips that visit a given set of stops
 
-        :param stop_ids: A list of stop_ids to check for unique trips
-        :type stop_ids: list of strings or integers
-        :param date: The date to calculate.
-        :type date: :py:mod:`datetime.date`
-        :param start_time: The time of day to start the calculation from.
-            Defaults to 0:00
-        :type start_time: :py:mod:`datetime.time`, optional
-        :param end_time: The time of day to start the calculation from.
-            Defaults to 23:59
-        :type end_time: :py:mod:`datetime.time`, optional
+        This function returns a subset of the trips table which include trips
+        that stop at _any_ of the stops provided.
 
-        :return: A :py:mod:`pandas.DataFrame` as a subset of the
-            :py:attr:`GTFS.trips` dataframe.
+        Parameters
+        ----------
+        stop_ids : list
+            A list of stop_ids to check
+        date : `datetime.date`
+            The service day to check
+        start_time : str, optional
+            A string representation (HH:MM:SS) of the number of hours since
+            midnight on the analysis date. Can be greater than 24:00:00.
+            A None value will consider all trips from the start of the
+            service day, by default None
+        end_time : str, optional
+            A string representation (HH:MM:SS) of the number of hours since
+            midnight on the analysis date. Can be greater than 24:00:00.
+            A None value will consider all trips through the end of the
+            service day, by default None
+        time_field : str, optional
+            The name of the time column in `stop_times` to consider, either 'arrival_time' or
+            'departure_time'. By default 'arrival_time'
+
+        Notes
+        -----
+            Not all GTFS datasets include arrival and/or departure times for
+            every stop. In cases where times are only set at time points, and
+            no interpolation is provided, this function will not work.
         """
 
         # Start by filtering all stop_trips by the given dateslice
@@ -1076,6 +1194,8 @@ class GTFS:
             (self.stop_times.trip_id.isin(trips.trip_id))
             & (self.stop_times.stop_id.isin(stop_ids))
         ]
+
+        # Now we can filter by stop times as needed
 
         # We've got the stop times, so let's grab the unique trips
         unique_trips = stop_trips.trip_id.unique()
