@@ -1,0 +1,9 @@
+# environment.yml
+
+name: readthedocs # this is just a name for the environment
+channels:
+  - conda-forge
+  - nodefaults
+dependencies:
+  - python=3.10
+  - pandas
