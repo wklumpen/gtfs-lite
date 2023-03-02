@@ -18,11 +18,11 @@ sys.path.insert(0, os.path.abspath('../../gtfslite'))
 # -- Project information -----------------------------------------------------
 
 project = 'gtfs-lite'
-copyright = '2020, Willem Klumpenhouwer'
+copyright = '2023, Willem Klumpenhouwer'
 author = 'Willem Klumpenhouwer'
 
 # The full version, including alpha/beta/rc tags
-release = '0.1.3'
+release = '0.1.4'
 
 
 # -- General configuration ---------------------------------------------------
@@ -30,7 +30,9 @@ release = '0.1.3'
 # Add any Sphinx extension module names here, as strings. They can be
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
-extensions = ['sphinx.ext.autodoc'
+extensions = [
+    'sphinx.ext.autodoc',
+    'sphinx.ext.napoleon'
 ]
 
 # Add any paths that contain templates here, relative to this directory.

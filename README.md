@@ -1,8 +1,12 @@
 # GTFS-Lite
-A lightweight pandas-driven package for analyzing static GTFS feeds.
+A lightweight Pandas-driven package for analyzing static GTFS feeds.
 
-GTFS-Lite is a simple module that allows for the quick loading and manipulation
-of statig GTFS feeds by leveraging the flexibility of the Pandas library.
+GTFS-Lite was created out of a desire to be able to quickly load static GTFS
+feeds into memory and ask specific questions about the dataset in the form of
+various metrics and manipulation. Examples include:
+* **Basic Summaries:** Trip counts, spans, feed validity, distributions of trips
+* **Frequency Metrics:** Frequency by time of day, route, or stop
+* **Spatial Analytics:** Counts of stops in polygons
 
 You can find the docs [here](https://gtfs-lite.readthedocs.io/).
 

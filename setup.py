@@ -4,8 +4,8 @@ with open("README.md", "r") as fh:
     long_description = fh.read()
 
 setuptools.setup(
-    name="gtfs-lite", # Replace with your own username
-    version="0.1.7",
+    name="gtfs-lite",
+    version="0.2.0",
     author="Willem Klumpenhouwer",
     author_email="willem@klumpentown.com",
     description="A lightweight Pandas-driven package for analyzing static GTFS feeds.",
