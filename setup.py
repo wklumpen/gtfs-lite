@@ -23,6 +23,6 @@ setuptools.setup(
     ],
     python_requires='>=3.6',
     install_requires=[
-        'pandas>=1.0',
+        'pandas>=1.5',
     ]
 )
