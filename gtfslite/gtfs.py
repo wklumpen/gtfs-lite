@@ -1,9 +1,8 @@
-from zipfile import ZipFile
-import datetime
 import calendar
+import datetime
 import json
-import functools
 import math
+from zipfile import ZipFile
 
 import pandas as pd
 
@@ -41,60 +40,65 @@ OPTIONAL_FILES = [
 class GTFS:
     """A representation of a single static GTFS feed and associated data.
 
-    All parameters should be valid Pandas DataFrame objects that follow
+    All parameters should be valid Pandas DataFrames that follow
     the structure corresponding to the dataset as defined by the GTFS
     standard (http://gtfs.org/reference/static).
 
-    :param agency: Transit agencies with service represented in this dataset.
-    :type agency: :py:mod:`pandas.DataFrame`
-    :param stops: Stops where vehicles pick up or drop off riders. Also defines
+    Parameters
+    ----------
+    agency : `pandas.DataFrame`
+        Transit agencies with service represented in this dataset.
+    stops : `pandas.DataFrame`
+        Stops where vehicles pick up or drop off riders. Also defines
         stations and station entrances.
-    :type stops: :py:mod:`pandas.DataFrame`
-    :param routes: Transit routes. A route is a group of trips that are
+    routes : `pandas.DataFrame`
+        Transit routes. A route is a group of trips that are
         displayed to riders as a single service.
-    :type routes: :py:mod:`pandas.DataFrame`
-    :param trips: Trips for each route. A trip is a sequence of two or more
+    trips : `pandas.DataFrame`
+        Trips for each route. A trip is a sequence of two or more
         stops that occur during a specific time period.
-    :type trips: :py:mod:`pandas.DataFrame`
-    :param stop_times: Times that a vehicle arrives at and departs from stops for each trip.
-    :type stop_times: :py:mod:`pandas.DataFrame`
-    :param calendar: Service dates specified using a weekly schedule with
+    stop_times : `pandas.DataFrame`
+        Times that a vehicle arrives at and departs from stops for each trip.
+    trips : `pandas.DataFrame`
+        Trips for each route. A trip is a sequence of two or more
+        stops that occur during a specific time period.
+    trips : `pandas.DataFrame`
+        Trips for each route. A trip is a sequence of two or more
+        stops that occur during a specific time period.
+    calendar : `pandas.DataFrame`, conditionally required
+        Service dates specified using a weekly schedule with
         start and end dates. This file is required unless all dates of service
-        are defined in calendar_dates.txt.
-    :type calendar: :py:mod:`pandas.DataFrame`, conditionally required
-    :param calendar_dates: Exceptions for the services defined in `calendar`.
-        If `calendar` is omitted, then calendar_dates.txt is required and must contain all dates of service.
-    :type calendar_dates: :py:mod:`pandas.DataFrame`, conditionally required
-
-    :param fare_attributes: Fare information for a transit agency's routes.
-    :type fare_attributes: :py:mod:`pandas.DataFrame`, optional
-    :param fare_rules: Rules to apply fares for itineraries.
-    :type fare_rules: :py:mod:`pandas.DataFrame`, optional
-    :param shapes: Rules for mapping vehicle travel paths, sometimes referred
-        to as route alignments.
-    :type shapes: :py:mod:`pandas.DataFrame`, optional
-    :param frequencies: Headway (time between trips) for headway-based service
-        or a compressed representation of fixed-schedule service.
-    :type frequencies: :py:mod:`pandas.DataFrame`, optional
-    :param transfers: Rules for making connections at transfer points between
-        routes.
-    :type transfers: :py:mod:`pandas.DataFrame`, optional
-    :param pathways: Pathways linking together locations within stations.
-    :type pathways: :py:mod:`pandas.DataFrame`, optional
-    :param levels: Levels within stations.
-    :type levels: :py:mod:`pandas.DataFrame`, optional
-    :param feed_info: Dataset metadata, including publisher, version,
-        and expiration information.
-    :param translations: In regions that have multiple official languages,
+        are defined in calendar_dates.
+    calendar : `pandas.DataFrame`, conditionally required
+        Exceptions for the services defined in `calendar`. If `calendar` is omitted, then calendar_dates is required and must contain all dates of service.
+    fare_attributes : `pandas.DataFrame`, default None
+        Fare information for a transit agency's routes.
+    fare_rules : `pandas.DataFrame`, default None
+        Rules to apply fares for itineraries.
+    shapes : `pandas.DataFrame`, default None
+        Rules for mapping vehicle travel paths, sometimes referred to as route alignments.
+    frequencies : `pandas.DataFrame`, default None
+        Headway (time between trips) for headway-based service or a compressed representation of fixed-schedule service.
+    transfers : `pandas.DataFrame`, default None
+        Rules for making connections at transfer points between routes.
+    pathways : `pandas.DataFrame`, default None
+        Pathways linking together locations within stations.
+    levels : `pandas.DataFrame`, default None
+        Levels within stations.
+    feed_info : `pandas.DataFrame`, default None
+        Dataset metadata, including publisher, version, and expiration information.
+    translations: `pandas.DataFrame`, default None
+        In regions that have multiple official languages,
         transit agencies/operators typically have language-specific names and
         web pages. In order to best serve riders in those regions, it is useful
         for the dataset to include these language-dependent values..
-    :type translations: :py:mod:`pandas.DataFrame`, optional
-    :type feed_info: :py:mod:`pandas.DataFrame`, optional
-    :param attributions: Dataset attributions.
-    :type attributions: :py:mod:`pandas.DataFrame`, optional
+    attributions : `pandas.DataFrame`, default None
+        Dataset attributions.
 
-    :raises FeedNotValidException: An exception indicating an invalid feed.
+    Raises
+    ------
+    FeedNotValidException
+        If the feed doesnt' contain the required files or is otherwise invalid.
     """
 
     def __init__(
@@ -485,18 +489,6 @@ class GTFS:
             attributions=attributions,
         )
 
-    def date_aware(func):
-        @functools.wraps(func)
-        def wrapper(self, *args, **kwargs):
-            if "arrival_datetime" not in self.stop_times.columns or self.date is None:
-                raise DateNotSetException(
-                    f"Calling {func.__name__} requires setting an analysis date with set_date first"
-                )
-            value = func(self, *args, **kwargs)
-            return value
-
-        return wrapper
-
     def summary(self):
         """Assemble a series of attributes summarizing the GTFS feed with the
         following columns:
@@ -530,27 +522,7 @@ class GTFS:
 
         return summary
 
-    def set_date(self, date):
-        """Set the date for date-aware analyses
-
-        Parameters
-        ----------
-        date : `datetime.date`
-            The representative date of analysis. Note that this can include data
-            that runs into the following day, depending on the agency service
-            period.
-        """
-        # We need a datetime for this, not a date, but we want it at midnight
-        dt = datetime.datetime(date.year, date.month, date.day)
-        self.date = date
-        self.stop_times["arrival_datetime"] = dt + pd.to_timedelta(
-            self.stop_times["arrival_time"]
-        )
-        self.stop_times["departure_datetime"] = dt + pd.to_timedelta(
-            self.stop_times["departure_time"]
-        )
-
-    def valid_date(self, date: datetime.date):
+    def valid_date(self, date_to_check: datetime.date):
         """Checks whether the provided date falls within the feed's date range
 
         Parameters
@@ -565,7 +537,10 @@ class GTFS:
         """
 
         summary = self.summary()
-        if summary.first_date > date or summary.last_date < date:
+
+        first_date = summary.first_date
+        last_date = summary.last_date
+        if first_date > date_to_check or last_date < date_to_check:
             return False
         else:
             return True
@@ -620,7 +595,6 @@ class GTFS:
             ].service_id.tolist()
         return self.trips[self.trips.service_id.isin(service_ids)]
 
-    @date_aware
     def route_summary(self, date, route_id):
         """Assemble a series of attributes summarizing a route on a particular
         day.
@@ -635,7 +609,7 @@ class GTFS:
 
         Parameters
         ----------
-        date : `date`
+        date : `datetime.date`
             The calendar date to summarize.
         route_id : str
             The ID of the route to summarize
@@ -733,78 +707,53 @@ class GTFS:
         return summary
 
     def service_hours(
-        self, date, start_time=datetime.time(0, 0), end_time=datetime.time(23, 59)
-    ):
+        self,
+        date: datetime.date,
+        start_time: str = None,
+        end_time: str = None,
+        time_field: str = "arrival_time",
+    ) -> float:
         """Computes the total service hours delivered for a specified date
-        within a specified time slice.
+        within an optionally specified time slice.
 
-        **Note:** This function currently does not support end_times that
-        are past 23:59. A new time slice for the following day must be
-        calculated separately.
+        This method measures this value by considering partial trips as having
+        stopped at the end of the time slice. In other words, partial trips are
+        included in the total service hours during the specified time slice.
 
-        :param date: The date to calculate.
-        :type date: :py:mod:`datetime.date`
-        :param start_time: The time of day to start the calculation from.
-            Defaults to 0:00
-        :type start_time: :py:mod:`datetime.time`, optional
-        :param end_time: The time of day to start the calculation from.
-            Defaults to 23:59
-        :type end_time: :py:mod:`datetime.time`, optional
-        :raises DateNotValidException: An exception indicating an invalid date.
-        :returns: The total service hours.
-        :rtype: float
+        Parameters
+        ----------
+        date : datetime.date
+            The dat of analysis
+        start_time : str, optional
+            The starttime in the format HH:MM:SS, by default None
+        end_time : str, optional
+            The starttime in the format HH:MM:SS, by default None
+        time_field : {'arrival_time', 'departure_time'}, optional
+            The time field to use for the calucation, by default 'arrival_time'
+
+        Returns
+        -------
+        float
+            The total service hours in the specified period.
+
+        Raises
+        ------
+        DateNotValidException
+            The date falls outside of the feed's span.
         """
 
         if not self.valid_date(date):
             raise DateNotValidException(f"Date falls outside of feed span: {date}")
 
-        # First, we need to get the service_ids that apply.
-        service_ids = []
-        start = start_time.strftime("%H:%M:%S")
-        end = end_time.strftime("%H:%M:%S")
-        # Start with the calendar
-        if self.calendar is not None:
-            dow = date.strftime("%A").lower()
-            service_ids.extend(
-                self.calendar[
-                    (self.calendar[dow] == 1)
-                    & (self.calendar.start_date.dt.date <= date)
-                    & (self.calendar.end_date.dt.date >= date)
-                ].service_id.tolist()
-            )
-
-        # Now handle exceptions if they are there
-        if self.calendar_dates is not None:
-            to_add = service_ids.extend(
-                self.calendar_dates[
-                    (self.calendar_dates.date.dt == date)
-                    & self.calendar_dates.exception_type
-                    == 1
-                ].service_id.tolist()
-            )
-            to_del = service_ids.extend(
-                self.calendar_dates[
-                    (self.calendar_dates.date.dt == date)
-                    & self.calendar_dates.exception_type
-                    == 2
-                ].service_id.tolist()
-            )
-
-            if to_add is not None:
-                service_ids.extend(to_add)
-            # Remove those that should be removed
-            if to_del is not None:
-                [service_ids.remove(i) for i in to_del]
-
-        # Grab all the trips
-        trips = self.trips[self.trips.service_id.isin(service_ids)]
+        trips = self.date_trips(date)
 
         # Grab all the stop_times
         stop_times = self.stop_times[
             self.stop_times.trip_id.isin(trips.trip_id)
-            & (self.stop_times.arrival_time >= start)
-            & (self.stop_times.arrival_time <= end)
+            & (self.stop_times.arrival_time >= start_time)
+            & (self.stop_times.arrival_time <= end_time)
         ]
+
         grouped = (
             stop_times[["trip_id", "arrival_time"]]
             .groupby("trip_id", as_index=False)
@@ -833,8 +782,6 @@ class GTFS:
         * *last_arrival*: The latest arrival of the bus for the day
         * *service_time*: The total service span, in hours
         * *average_headway*: Average time in minutes between arrivals
-
-        **Note** This is a test warning
 
         Parameters
         ----------
@@ -1045,7 +992,7 @@ class GTFS:
         interval: int = 60,
         start_time: str = None,
         end_time: str = None,
-        time_field: str = "arrival_time"
+        time_field: str = "arrival_time",
     ) -> pd.DataFrame:
         """Generate a matrix of route headways throughout a given time period.
 
@@ -1066,7 +1013,7 @@ class GTFS:
         end_time : str, optional
             A string representation (HH:MM:SS) of the end time of the analysis.
             Only trips which *end* before this analysis time will be included. '
-            Can be greater than 24:00:00. A None value will consider all trips 
+            Can be greater than 24:00:00. A None value will consider all trips
             through the end of the service day, by default None
         time_field : str, optional
             The name of the time column in `stop_times` to consider, either 'arrival_time' or
@@ -1081,51 +1028,85 @@ class GTFS:
         # Start by getting all of the trips and stop events in a given date
         trips = self.date_trips(date)
         stop_times = self.stop_times[self.stop_times.trip_id.isin(trips.trip_id)]
-        
+
         # Let's get the start_times of all trips
-        trip_start_times = stop_times[['trip_id', 'stop_sequence', 'arrival_time', 'departure_time']].sort_values(['trip_id', 'stop_sequence']).drop_duplicates('trip_id')
-        trip_end_times = stop_times[['trip_id', 'stop_sequence', 'arrival_time', 'departure_time']].sort_values(['trip_id', 'stop_sequence'], ascending=False).drop_duplicates('trip_id')
-        
+        trip_start_times = (
+            stop_times[["trip_id", "stop_sequence", "arrival_time", "departure_time"]]
+            .sort_values(["trip_id", "stop_sequence"])
+            .drop_duplicates("trip_id")
+        )
+        trip_end_times = (
+            stop_times[["trip_id", "stop_sequence", "arrival_time", "departure_time"]]
+            .sort_values(["trip_id", "stop_sequence"], ascending=False)
+            .drop_duplicates("trip_id")
+        )
+
         # Filter out our slice
         if start_time != None:
-            stop_times = stop_times[stop_times.trip_id.isin(trip_start_times[trip_start_times[time_field] >= start_time].trip_id)]
+            stop_times = stop_times[
+                stop_times.trip_id.isin(
+                    trip_start_times[trip_start_times[time_field] >= start_time].trip_id
+                )
+            ]
         if end_time != None:
-            stop_times = stop_times[stop_times.trip_id.isin(trip_end_times[trip_end_times[time_field] <= end_time].trip_id)]
-        
+            stop_times = stop_times[
+                stop_times.trip_id.isin(
+                    trip_end_times[trip_end_times[time_field] <= end_time].trip_id
+                )
+            ]
+
         # Now get the trips we're working with
-        trip_starts = trip_start_times[trip_start_times.trip_id.isin(stop_times.trip_id.unique())]
-        trip_starts = pd.merge(trip_starts, self.trips[['trip_id', 'route_id']], on='trip_id')
-        print(trip_starts)
+        trip_starts = trip_start_times[
+            trip_start_times.trip_id.isin(stop_times.trip_id.unique())
+        ]
+        trip_starts = pd.merge(
+            trip_starts, self.trips[["trip_id", "route_id"]], on="trip_id"
+        )
+
         # Set up a basis for the matrix slices
         mx_start = [int(i) for i in stop_times[time_field].min().split(":")]
         mx_end = [int(i) for i in stop_times[time_field].max().split(":")]
 
         # We need a reference midnight
         midnight = datetime.datetime.combine(date, datetime.datetime.min.time())
-        
+
         # Now we convert them into datetime objects
-        start_dt = datetime.datetime.combine(date, datetime.datetime.min.time()) + datetime.timedelta(hours=mx_start[0], minutes=mx_start[1])
-        end_dt = datetime.datetime.combine(date, datetime.datetime.min.time()) + datetime.timedelta(hours=mx_end[0], minutes=mx_end[1])
-        
+        start_dt = datetime.datetime.combine(
+            date, datetime.datetime.min.time()
+        ) + datetime.timedelta(hours=mx_start[0], minutes=mx_start[1])
+        end_dt = datetime.datetime.combine(
+            date, datetime.datetime.min.time()
+        ) + datetime.timedelta(hours=mx_end[0], minutes=mx_end[1])
+
         # Floor and ceiling our start and end dates to intervals
         delta = datetime.timedelta(minutes=interval)
-        start_dt = datetime.datetime.min + math.floor((start_dt - datetime.datetime.min) / delta) * delta
-        end_dt = datetime.datetime.min + math.ceil((end_dt - datetime.datetime.min) / delta) * delta
-        column_count = int((end_dt - start_dt).total_seconds()/(60 * interval))
-        
+        start_dt = (
+            datetime.datetime.min
+            + math.floor((start_dt - datetime.datetime.min) / delta) * delta
+        )
+        end_dt = (
+            datetime.datetime.min
+            + math.ceil((end_dt - datetime.datetime.min) / delta) * delta
+        )
+        column_count = int((end_dt - start_dt).total_seconds() / (60 * interval))
+
         slices = []
         # Populate a matrix of values
         for i in range(column_count):
             # Determine the time slice
-            slice_start = start_dt + datetime.timedelta(minutes=(i * interval)) - midnight
-            slice_end = (start_dt + datetime.timedelta(minutes=((i + 1) * interval))) - midnight
-            
+            slice_start = (
+                start_dt + datetime.timedelta(minutes=(i * interval)) - midnight
+            )
+            slice_end = (
+                start_dt + datetime.timedelta(minutes=((i + 1) * interval))
+            ) - midnight
+
             # Grab start formatting string
             total_seconds = int(slice_start.total_seconds())
             hours, remainder = divmod(total_seconds, 3600)
             minutes, _ = divmod(remainder, 60)
             slice_start_str = f"{hours:02}:{minutes:02}:00"
-            
+
             # Grab end formatting string
             total_seconds = int(slice_end.total_seconds())
             hours, remainder = divmod(total_seconds, 3600)
@@ -1133,14 +1114,23 @@ class GTFS:
             slice_end_str = f"{hours:02}:{minutes:02}:00"
 
             # Now we get the trips that start within our slice
-            in_slice = trip_starts[(trip_starts[time_field] >= slice_start_str) & (trip_starts[time_field] < slice_end_str)]
-            slice_group = in_slice[['route_id', 'trip_id']].groupby('route_id', as_index=False).count()
-            slice_group['frequency'] = (slice_group['trip_id'] * (60.0 / interval)).astype(int)
-            slice_group['bin'] = f"{slice_start_str}-{slice_end_str}"
-            slices.append(slice_group[['route_id', 'bin', 'frequency']])
-        
+            in_slice = trip_starts[
+                (trip_starts[time_field] >= slice_start_str)
+                & (trip_starts[time_field] < slice_end_str)
+            ]
+            slice_group = (
+                in_slice[["route_id", "trip_id"]]
+                .groupby("route_id", as_index=False)
+                .count()
+            )
+            slice_group["frequency"] = (
+                slice_group["trip_id"] * (60.0 / interval)
+            ).astype(int)
+            slice_group["bin"] = f"{slice_start_str}-{slice_end_str}"
+            slices.append(slice_group[["route_id", "bin", "frequency"]])
+
         # Assemble final matrix
-        mx = pd.concat(slices, axis='index')
+        mx = pd.concat(slices, axis="index")
         mx = mx.fillna(0)
         return mx.reset_index(drop=True)
 
@@ -1150,7 +1140,7 @@ class GTFS:
         date: datetime.date,
         start_time: str = None,
         end_time: str = None,
-        time_filed: str = "arrival_time",
+        time_field: str = "arrival_time",
     ) -> pd.DataFrame:
         """Get a set of unique trips that visit a given set of stops
 
@@ -1193,6 +1183,8 @@ class GTFS:
         stop_trips = self.stop_times[
             (self.stop_times.trip_id.isin(trips.trip_id))
             & (self.stop_times.stop_id.isin(stop_ids))
+            & (self.stop_times.arrival_time >= start_time)
+            & (self.stop_times.arrival_time <= end_time)
         ]
 
         # Now we can filter by stop times as needed

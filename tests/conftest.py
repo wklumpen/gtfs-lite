@@ -15,7 +15,7 @@ def test_date_invalid():
 
 @pytest.fixture
 def test_timerange():
-    return [time(0, 0), time(23, 59)]
+    return ["00:00:00", "24:00:00"]
 
 @pytest.fixture
 def test_stop_ids():
