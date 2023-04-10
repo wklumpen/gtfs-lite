@@ -135,9 +135,7 @@ class GTFS:
         self.calendar_dates = calendar_dates
 
         if self.calendar is None and self.calendar_dates is None:
-            raise FeedNotValidException(
-                "One of calendar or calendar_dates is required."
-            )
+            raise FeedNotValidException("One of calendar or calendar_dates is required.")
 
         # Optional Files
         self.fare_attributes = fare_attributes
@@ -165,7 +163,6 @@ class GTFS:
         :return: A :class:`GTFS` object with loaded and validated data.
         """
         with ZipFile(filepath, "r") as zip_file:
-
             # Deal with nested files
             filepaths = dict()
             for req in REQUIRED_FILES + OPTIONAL_FILES:
@@ -291,9 +288,7 @@ class GTFS:
                 if calendar_dates.shape[0] == 0:
                     calendar_dates = None
                 else:
-                    calendar_dates["date"] = pd.to_datetime(
-                        calendar_dates["date"]
-                    ).dt.date
+                    calendar_dates["date"] = pd.to_datetime(calendar_dates["date"]).dt.date
             else:
                 calendar_dates = None
 
@@ -569,29 +564,24 @@ class GTFS:
         if self.calendar is not None:
             # Get all the service_ids for the desired day of the week
             service_ids = self.calendar[
-                (self.calendar[dayname] == 1)
-                & (self.calendar.start_date <= date)
-                & (self.calendar.end_date >= date)
+                (self.calendar[dayname] == 1) & (self.calendar.start_date <= date) & (self.calendar.end_date >= date)
             ].service_id.tolist()
             if self.calendar_dates is not None:
                 # Add service ids in the calendar_dates
                 service_ids.append(
                     self.calendar_dates[
-                        (self.calendar_dates.date == date)
-                        & (self.calendar_dates.exception_type == 1)
+                        (self.calendar_dates.date == date) & (self.calendar_dates.exception_type == 1)
                     ].service_id.tolist()
                 )
                 # Remove service ids from the calendar dates
                 remove_service_ids = self.calendar_dates[
-                    (self.calendar_dates.date == date)
-                    & (self.calendar_dates.exception_type == 2)
+                    (self.calendar_dates.date == date) & (self.calendar_dates.exception_type == 2)
                 ].service_id.tolist()
 
                 service_ids = [i for i in service_ids if i not in remove_service_ids]
         else:
             service_ids = self.calendar_dates[
-                (self.calendar_dates.date == date)
-                & (self.calendar_dates.exception_type == 1)
+                (self.calendar_dates.date == date) & (self.calendar_dates.exception_type == 1)
             ].service_id.tolist()
         return self.trips[self.trips.service_id.isin(service_ids)]
 
@@ -645,11 +635,7 @@ class GTFS:
             int(max_arr.split(":")[0])
             + int(max_arr.split(":")[1]) / 60.0
             + int(max_arr.split(":")[2]) / 3600.0
-            - (
-                int(min_dep.split(":")[0])
-                + int(min_dep.split(":")[1]) / 60.0
-                + int(min_dep.split(":")[2]) / 3600.0
-            )
+            - (int(min_dep.split(":")[0]) + int(min_dep.split(":")[1]) / 60.0 + int(min_dep.split(":")[2]) / 3600.0)
         )
         summary["average_headway"] = 60 * route_headway / visits
         return summary
@@ -669,40 +655,25 @@ class GTFS:
             trips = trips[trips.direction_id == 0]
         stop_times = self.stop_times[self.stop_times.trip_id.isin(trips.trip_id)]
         stop_times = pd.merge(stop_times, trips, on="trip_id", how="left")
-        route_trips = (
-            trips[["route_id", "trip_id"]].groupby("route_id", as_index=False).count()
-        )
+        route_trips = trips[["route_id", "trip_id"]].groupby("route_id", as_index=False).count()
         route_trips["trips"] = route_trips.trip_id
-        first_departures = (
-            stop_times[["route_id", "departure_time"]]
-            .groupby("route_id", as_index=False)
-            .min()
-        )
-        last_arrivals = (
-            stop_times[["route_id", "arrival_time"]]
-            .groupby("route_id", as_index=False)
-            .max()
-        )
+        first_departures = stop_times[["route_id", "departure_time"]].groupby("route_id", as_index=False).min()
+        last_arrivals = stop_times[["route_id", "arrival_time"]].groupby("route_id", as_index=False).max()
         summary = pd.merge(route_trips, first_departures, on=["route_id"])
         summary = pd.merge(summary, last_arrivals, on=["route_id"])
         summary["service_time"] = (
             summary.arrival_time.str.split(":", -1, expand=True)[0].astype(int)
             + summary.arrival_time.str.split(":", -1, expand=True)[1].astype(int) / 60.0
-            + summary.arrival_time.str.split(":", -1, expand=True)[2].astype(int)
-            / 3600.0
+            + summary.arrival_time.str.split(":", -1, expand=True)[2].astype(int) / 3600.0
         ) - (
             summary.departure_time.str.split(":", -1, expand=True)[0].astype(int)
-            + summary.departure_time.str.split(":", -1, expand=True)[1].astype(int)
-            / 60.0
-            + summary.departure_time.str.split(":", -1, expand=True)[2].astype(int)
-            / 3600.0
+            + summary.departure_time.str.split(":", -1, expand=True)[1].astype(int) / 60.0
+            + summary.departure_time.str.split(":", -1, expand=True)[2].astype(int) / 3600.0
         )
         summary["average_headway"] = 60 * summary.service_time / summary.trips
         summary["last_arrival"] = summary.arrival_time
         summary["first_departure"] = summary.departure_time
-        summary = summary[
-            ["route_id", "trips", "first_departure", "last_arrival", "average_headway"]
-        ]
+        summary = summary[["route_id", "trips", "first_departure", "last_arrival", "average_headway"]]
         summary = pd.merge(self.routes, summary, on="route_id", how="inner")
         return summary
 
@@ -764,15 +735,11 @@ class GTFS:
         max_split = grouped["max"].str.split(":", expand=True).astype(int)
         min_split = grouped["min"].str.split(":", expand=True).astype(int)
         grouped["diff"] = (
-            (max_split[0] - min_split[0])
-            + (max_split[1] - min_split[1]) / 60
-            + (max_split[2] - min_split[2]) / 3600
+            (max_split[0] - min_split[0]) + (max_split[1] - min_split[1]) / 60 + (max_split[2] - min_split[2]) / 3600
         )
         return grouped["diff"].sum()
 
-    def stop_summary(
-        self, stop_id: str, start_time: str = None, end_time: str = None
-    ) -> pd.Series:
+    def stop_summary(self, stop_id: str, start_time: str = None, end_time: str = None) -> pd.Series:
         """Assemble a series of attributes summarizing a stop on a particular
         day. The following columns are returned:
 
@@ -793,8 +760,7 @@ class GTFS:
         date = self.date
         trips = self.date_trips(date)
         stop_times = self.stop_times[
-            self.stop_times.trip_id.isin(trips.trip_id)
-            & (self.stop_times.stop_id == stop_id)
+            self.stop_times.trip_id.isin(trips.trip_id) & (self.stop_times.stop_id == stop_id)
         ]
 
         summary = self.stops[self.stops.stop_id == stop_id].iloc[0]
@@ -851,8 +817,7 @@ class GTFS:
 
         stop_id = str(stop_id)
         stop_times = self.stop_times[
-            self.stop_times.trip_id.isin(self.date_trips(date).trip_id)
-            & (self.stop_times.stop_id == stop_id)
+            self.stop_times.trip_id.isin(self.date_trips(date).trip_id) & (self.stop_times.stop_id == stop_id)
         ].copy()
         # Filter by start time and end time if needed
         if start_time != None:
@@ -902,22 +867,15 @@ class GTFS:
                 ].iterrows():
                     # We'll need the number of a given days of the week in that range to multiply the calendar.
                     week = {}
-                    for i in range(
-                        ((end_date + datetime.timedelta(days=1)) - start_date).days
-                    ):
-                        day = calendar.day_name[
-                            (start_date + datetime.timedelta(days=i + 1)).weekday()
-                        ].lower()
+                    for i in range(((end_date + datetime.timedelta(days=1)) - start_date).days):
+                        day = calendar.day_name[(start_date + datetime.timedelta(days=i + 1)).weekday()].lower()
                         week[day] = week[day] + 1 if day in week else 1
 
                     # Get trips with that service id and add them to the total, only if that day is in there.
                     if dow in week.keys():
                         dist[dow] = (
                             dist[dow]
-                            + week[dow]
-                            * self.trips[
-                                self.trips.service_id == service.service_id
-                            ].trip_id.count()
+                            + week[dow] * self.trips[self.trips.service_id == service.service_id].trip_id.count()
                         )
 
         # Now check exceptions to add and remove
@@ -925,8 +883,7 @@ class GTFS:
             # Start by going through all the calendar dates within the date range
             # cd = self.calendar_dates.copy()
             for index, cd in self.calendar_dates[
-                (self.calendar_dates["date"].dt.date >= start_date)
-                & (self.calendar_dates["date"].dt.date <= end_date)
+                (self.calendar_dates["date"].dt.date >= start_date) & (self.calendar_dates["date"].dt.date <= end_date)
             ].iterrows():
                 if cd["exception_type"] == 1:
                     dist[days[cd["date"].dayofweek]] += self.trips[
@@ -961,23 +918,17 @@ class GTFS:
         if format == "geojson":
             with open(path_to_shape) as f:
                 features = json.load(f)["features"]
-                boundary = GeometryCollection(
-                    [shape(feature["geometry"]).buffer(0) for feature in features]
-                )
+                boundary = GeometryCollection([shape(feature["geometry"]).buffer(0) for feature in features])
                 routes = []
                 counts = []
                 for idx, route in self.routes.iterrows():
                     # Get all the stops on trips for that route.
                     stops = self.stop_times[
-                        self.stop_times.trip_id.isin(
-                            self.trips[self.trips.route_id == route.route_id].trip_id
-                        )
+                        self.stop_times.trip_id.isin(self.trips[self.trips.route_id == route.route_id].trip_id)
                     ].stop_id.unique()
                     # NOTE: buffer(0) is a trick for fixing scenarios where polygons have overlapping coordinates
                     count = 0
-                    for idx, stop in self.stops[
-                        self.stops.stop_id.isin(stops)
-                    ].iterrows():
+                    for idx, stop in self.stops[self.stops.stop_id.isin(stops)].iterrows():
                         if Point(stop.stop_lon, stop.stop_lat).within(boundary):
                             count += 1
                     routes.append(route.route_id)
@@ -1022,116 +973,95 @@ class GTFS:
         Returns
         -------
         pd.DataFrame
-            A dataframe containing as rows route IDs, and as columns hour slices.
+            A dataframe containing the following columns:
+                route_id: The ID of the route
+                bin_start: The start of the time interval measured (HH:MM)
+                bin_end: The end of the time interval measured (HH:MM)
+                trips: The count of the number of trips on that route in that interval
+                frequency: The frequency of trips (in trips/hour) on the route
         """
 
         # Start by getting all of the trips and stop events in a given date
         trips = self.date_trips(date)
-        stop_times = self.stop_times[self.stop_times.trip_id.isin(trips.trip_id)]
+        stop_times = self.stop_times[self.stop_times.trip_id.isin(trips.trip_id)].copy()
+
+        # Use a numerical timestamp for filtering
+        stop_times["timestamp"] = 60 * stop_times[time_field].str.split(":").str[0].astype(int) + stop_times[
+            time_field
+        ].str.split(":").str[1].astype(int)
 
         # Let's get the start_times of all trips
         trip_start_times = (
-            stop_times[["trip_id", "stop_sequence", "arrival_time", "departure_time"]]
+            stop_times[["trip_id", "stop_sequence", "timestamp", time_field]]
             .sort_values(["trip_id", "stop_sequence"])
-            .drop_duplicates("trip_id")
-        )
-        trip_end_times = (
-            stop_times[["trip_id", "stop_sequence", "arrival_time", "departure_time"]]
-            .sort_values(["trip_id", "stop_sequence"], ascending=False)
             .drop_duplicates("trip_id")
         )
 
         # Filter out our slice
         if start_time != None:
+            start_time_int = 60 * int(start_time.split(":")[0]) + int(start_time.split(":")[1])
             stop_times = stop_times[
-                stop_times.trip_id.isin(
-                    trip_start_times[trip_start_times[time_field] >= start_time].trip_id
-                )
+                stop_times.trip_id.isin(trip_start_times[trip_start_times.timestamp >= start_time_int].trip_id)
             ]
+
         if end_time != None:
+            # We need trip end times for this filter
+            trip_end_times = (
+                stop_times[["trip_id", "stop_sequence", "timestamp", time_field]]
+                .sort_values(["trip_id", "stop_sequence"], ascending=False)
+                .drop_duplicates("trip_id")
+            )
+            end_time_int = 60 * int(end_time.split(":")[0]) + int(end_time.split(":")[1])
             stop_times = stop_times[
-                stop_times.trip_id.isin(
-                    trip_end_times[trip_end_times[time_field] <= end_time].trip_id
-                )
+                stop_times.trip_id.isin(trip_end_times[trip_end_times.timestamp <= end_time_int].trip_id)
             ]
 
         # Now get the trips we're working with
-        trip_starts = trip_start_times[
-            trip_start_times.trip_id.isin(stop_times.trip_id.unique())
-        ]
-        trip_starts = pd.merge(
-            trip_starts, self.trips[["trip_id", "route_id"]], on="trip_id"
-        )
+        trip_starts = trip_start_times[trip_start_times.trip_id.isin(stop_times.trip_id.unique())]
+        trip_starts = pd.merge(trip_starts, self.trips[["trip_id", "route_id"]], on="trip_id")
 
         # Set up a basis for the matrix slices
-        mx_start = [int(i) for i in stop_times[time_field].min().split(":")]
-        mx_end = [int(i) for i in stop_times[time_field].max().split(":")]
+        mx_start = trip_starts["timestamp"].min().tolist()
+        mx_end = trip_starts["timestamp"].max().tolist()
 
-        # We need a reference midnight
-        midnight = datetime.datetime.combine(date, datetime.datetime.min.time())
+        # We can now figure out how many columns we need
+        mx_start_floor = mx_start - mx_start % interval
+        mx_end_ceil = int(math.ceil(mx_end / interval) * interval)
 
-        # Now we convert them into datetime objects
-        start_dt = datetime.datetime.combine(
-            date, datetime.datetime.min.time()
-        ) + datetime.timedelta(hours=mx_start[0], minutes=mx_start[1])
-        end_dt = datetime.datetime.combine(
-            date, datetime.datetime.min.time()
-        ) + datetime.timedelta(hours=mx_end[0], minutes=mx_end[1])
+        column_count = int((mx_end_ceil - mx_start_floor) / interval)
 
-        # Floor and ceiling our start and end dates to intervals
-        delta = datetime.timedelta(minutes=interval)
-        start_dt = (
-            datetime.datetime.min
-            + math.floor((start_dt - datetime.datetime.min) / delta) * delta
-        )
-        end_dt = (
-            datetime.datetime.min
-            + math.ceil((end_dt - datetime.datetime.min) / delta) * delta
-        )
-        column_count = int((end_dt - start_dt).total_seconds() / (60 * interval))
-
+        # Template dataframe
+        template_df = pd.DataFrame({"route_id": trip_starts.route_id.unique()})
         slices = []
+
         # Populate a matrix of values
         for i in range(column_count):
             # Determine the time slice
-            slice_start = (
-                start_dt + datetime.timedelta(minutes=(i * interval)) - midnight
-            )
-            slice_end = (
-                start_dt + datetime.timedelta(minutes=((i + 1) * interval))
-            ) - midnight
+            slice_start_int = mx_start_floor + i * interval
+            slice_end_int = mx_start_floor + (i + 1) * interval
 
             # Grab start formatting string
-            total_seconds = int(slice_start.total_seconds())
-            hours, remainder = divmod(total_seconds, 3600)
-            minutes, _ = divmod(remainder, 60)
-            slice_start_str = f"{hours:02}:{minutes:02}:00"
+            hours, minutes = divmod(slice_start_int, 60)
+            slice_start_str = f"{hours:02}:{minutes:02}"
 
             # Grab end formatting string
-            total_seconds = int(slice_end.total_seconds())
-            hours, remainder = divmod(total_seconds, 3600)
-            minutes, _ = divmod(remainder, 60)
-            slice_end_str = f"{hours:02}:{minutes:02}:00"
-
+            hours, minutes = divmod(slice_end_int, 60)
+            slice_end_str = f"{hours:02}:{minutes:02}"
             # Now we get the trips that start within our slice
             in_slice = trip_starts[
-                (trip_starts[time_field] >= slice_start_str)
-                & (trip_starts[time_field] < slice_end_str)
+                (trip_starts.timestamp >= slice_start_int) & (trip_starts.timestamp < slice_end_int)
             ]
-            slice_group = (
-                in_slice[["route_id", "trip_id"]]
-                .groupby("route_id", as_index=False)
-                .count()
-            )
-            slice_group["frequency"] = (
-                slice_group["trip_id"] * (60.0 / interval)
-            ).astype(int)
-            slice_group["bin"] = f"{slice_start_str}-{slice_end_str}"
-            slices.append(slice_group[["route_id", "bin", "frequency"]])
+            slice_group = in_slice[["route_id", "trip_id"]].groupby("route_id", as_index=False).count()
+            slice_group["frequency"] = (slice_group["trip_id"] * (60.0 / interval)).astype(int)
+            final = pd.merge(template_df, slice_group, on="route_id", how="left").fillna(0)
+            final["frequency"] = final["frequency"].astype(int)
+            final["trips"] = final["trip_id"].astype(int)
+            final["bin_start"] = slice_start_str
+            final["bin_end"] = slice_end_str
+            slices.append(final[["route_id", "bin_start", "bin_end", "trips", "frequency"]])
 
         # Assemble final matrix
         mx = pd.concat(slices, axis="index")
-        mx = mx.fillna(0)
         return mx.reset_index(drop=True)
 
     def trips_at_stops(
