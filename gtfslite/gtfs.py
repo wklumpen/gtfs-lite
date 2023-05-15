@@ -452,7 +452,7 @@ class GTFS:
 
             if filepaths["attributions.txt"] in zip_file.namelist():
                 attributions = pd.read_csv(
-                    zip_file.open("attributions.txt"),
+                    zip_file.open(filepaths["attributions.txt"]),
                     dtype={
                         "attribution_id": str,
                         "agency_id": str,
