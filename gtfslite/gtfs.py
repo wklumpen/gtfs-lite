@@ -461,8 +461,8 @@ class GTFS:
                 feed_info = None
 
             if filepaths["attributions.txt"] in zip_file.namelist():
-                attributions = self.read_clean_feed(
-                    zip_file.open("attributions.txt"),
+                attributions = pd.read_csv(
+                    zip_file.open(filepaths["attributions.txt"]),
                     dtype={
                         "attribution_id": str,
                         "agency_id": str,
