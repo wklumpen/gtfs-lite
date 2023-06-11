@@ -152,7 +152,7 @@ class GTFS:
         # Set the analysis date as "date unaware"
         self.date = None
 
-    def read_clean_feed(filepath,dtype=None,parse_dates=False,skipinitialspace=True):
+    def _load_clean_feed(filepath,dtype=None,parse_dates=False,skipinitialspace=True):
         df = pd.read_csv(
             filepath,
             dtype=dtype,
@@ -183,7 +183,7 @@ class GTFS:
                         filepaths[req] = file
 
             # Create pandas objects of the entire feed
-            agency = self.read_clean_feed(
+            agency = self._load_clean_feed(
                 zip_file.open(filepaths["agency.txt"]),
                 dtype={
                     "agency_id": str,
@@ -197,7 +197,7 @@ class GTFS:
                 },
                 skipinitialspace=True,
             )
-            stops = self.read_clean_feed(
+            stops = self._load_clean_feed(
                 zip_file.open(filepaths["stops.txt"]),
                 dtype={
                     "stop_id": str,
@@ -217,7 +217,7 @@ class GTFS:
                 },
                 skipinitialspace=True,
             )
-            routes = self.read_clean_feed(
+            routes = self._load_clean_feed(
                 zip_file.open(filepaths["routes.txt"]),
                 dtype={
                     "route_id": str,
@@ -233,7 +233,7 @@ class GTFS:
                 },
                 skipinitialspace=True,
             )
-            trips = self.read_clean_feed(
+            trips = self._load_clean_feed(
                 zip_file.open(filepaths["trips.txt"]),
                 dtype={
                     "route_id": str,
@@ -249,7 +249,7 @@ class GTFS:
                 },
                 skipinitialspace=True,
             )
-            stop_times = self.read_clean_feed(
+            stop_times = self._load_clean_feed(
                 zip_file.open(filepaths["stop_times.txt"]),
                 dtype={
                     "trip_id": str,
@@ -267,7 +267,7 @@ class GTFS:
             )
 
             if filepaths["calendar.txt"] in zip_file.namelist():
-                calendar = self.read_clean_feed(
+                calendar = self._load_clean_feed(
                     zip_file.open(filepaths["calendar.txt"]),
                     dtype={
                         "service_id": str,
@@ -290,7 +290,7 @@ class GTFS:
                 calendar = None
 
             if filepaths["calendar_dates.txt"] in zip_file.namelist():
-                calendar_dates = self.read_clean_feed(
+                calendar_dates = self._load_clean_feed(
                     zip_file.open(filepaths["calendar_dates.txt"]),
                     dtype={"service_id": str, "date": str, "exception_type": int},
                     skipinitialspace=True,
@@ -303,7 +303,7 @@ class GTFS:
                 calendar_dates = None
 
             if filepaths["fare_attributes.txt"] in zip_file.namelist():
-                fare_attributes = self.read_clean_feed(
+                fare_attributes = self._load_clean_feed(
                     zip_file.open(filepaths["fare_attributes.txt"]),
                     dtype={
                         "fare_id": str,
@@ -320,7 +320,7 @@ class GTFS:
                 fare_attributes = None
 
             if filepaths["fare_rules.txt"] in zip_file.namelist():
-                fare_rules = self.read_clean_feed(
+                fare_rules = self._load_clean_feed(
                     zip_file.open(filepaths["fare_rules.txt"]),
                     dtype={
                         "fare_id": str,
@@ -335,7 +335,7 @@ class GTFS:
                 fare_rules = None
 
             if filepaths["shapes.txt"] in zip_file.namelist():
-                shapes = self.read_clean_feed(
+                shapes = self._load_clean_feed(
                     zip_file.open(filepaths["shapes.txt"]),
                     dtype={
                         "shape_id": str,
@@ -350,7 +350,7 @@ class GTFS:
                 shapes = None
 
             if filepaths["frequencies.txt"] in zip_file.namelist():
-                frequencies = self.read_clean_feed(
+                frequencies = self._load_clean_feed(
                     zip_file.open(filepaths["frequencies.txt"]),
                     dtype={
                         "trip_id": str,
@@ -366,7 +366,7 @@ class GTFS:
                 frequencies = None
 
             if filepaths["transfers.txt"] in zip_file.namelist():
-                transfers = self.read_clean_feed(
+                transfers = self._load_clean_feed(
                     zip_file.open(filepaths["transfers.txt"]),
                     dtype={
                         "from_stop_id": str,
@@ -380,7 +380,7 @@ class GTFS:
                 transfers = None
 
             if filepaths["pathways.txt"] in zip_file.namelist():
-                pathways = self.read_clean_feed(
+                pathways = self._load_clean_feed(
                     zip_file.open(filepaths["pathways.txt"]),
                     dtype={
                         "pathway_id": str,
@@ -402,7 +402,7 @@ class GTFS:
                 pathways = None
 
             if filepaths["levels.txt"] in zip_file.namelist():
-                levels = self.read_clean_feed(
+                levels = self._load_clean_feed(
                     zip_file.open(filepaths["levels.txt"]),
                     dtype={"level_id": str, "level_index": float, "level_name": str},
                     skipinitialspace=True,
@@ -411,7 +411,7 @@ class GTFS:
                 levels = None
 
             if filepaths["translations.txt"] in zip_file.namelist():
-                translations = self.read_clean_feed(
+                translations = self._load_clean_feed(
                     zip_file.open(filepaths["translations.txt"]),
                     dtype={
                         "table_name": str,
@@ -424,7 +424,7 @@ class GTFS:
                     },
                     skipinitialspace=True,
                 )
-                feed_info = self.read_clean_feed(
+                feed_info = self._load_clean_feed(
                     zip_file.open(filepaths["feed_info.txt"]),
                     dtype={
                         "feed_publisher_name": str,
@@ -440,7 +440,7 @@ class GTFS:
                     skipinitialspace=True,
                 )
             elif filepaths["feed_info.txt"] in zip_file.namelist():
-                feed_info = self.read_clean_feed(
+                feed_info = self._load_clean_feed(
                     zip_file.open(filepaths["feed_info.txt"]),
                     dtype={
                         "feed_publisher_name": str,
