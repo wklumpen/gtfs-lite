@@ -359,9 +359,10 @@ class GTFS:
                         "headway_secs": int,
                         "exact_times": int,
                     },
-                    parse_dates=["start_time", "end_time"],
                     skipinitialspace=True,
                 )
+                frequencies["start_time"] = pd.to_timedelta(frequencies["start_time"])
+                frequencies["end_time"] = pd.to_timedelta(frequencies["end_time"])
             else:
                 frequencies = None
 
