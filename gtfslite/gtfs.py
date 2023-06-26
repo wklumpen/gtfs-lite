@@ -579,7 +579,7 @@ class GTFS:
             ].service_id.tolist()
             if self.calendar_dates is not None:
                 # Add service ids in the calendar_dates
-                service_ids.append(
+                service_ids.extend(
                     self.calendar_dates[
                         (self.calendar_dates.date == date) & (self.calendar_dates.exception_type == 1)
                     ].service_id.tolist()
