@@ -152,15 +152,21 @@ class GTFS:
         # Set the analysis date as "date unaware"
         self.date = None
 
-    def _load_clean_feed(filepath,dtype=None,parse_dates=False,skipinitialspace=True):
-        df = pd.read_csv(
-            filepath,
-            dtype=dtype,
-            parse_dates=parse_dates,
-            skipinitialspace=skipinitialspace,
-        )
-        df.columns = df.columns.str.strip()
-        return df
+    def _load_clean_feed(filepath,dtype=None,parse_dates=False,skipinitialspace=True,optional=False):
+        try:
+            df = pd.read_csv(
+                filepath,
+                dtype=dtype,
+                parse_dates=parse_dates,
+                skipinitialspace=skipinitialspace,
+            )
+            df.columns = df.columns.str.strip()
+            return df
+        except pd.errors.EmptyDataError:
+            if optional:
+                return None
+            else:
+                raise
     
     @classmethod
     def load_zip(self, filepath):
@@ -282,6 +288,7 @@ class GTFS:
                         "end_date": str,
                     },
                     skipinitialspace=True,
+                    optional=True,
                 )
                 calendar["start_date"] = pd.to_datetime(calendar["start_date"], format='%Y%m%d').dt.date
                 calendar["end_date"] = pd.to_datetime(calendar["end_date"], format='%Y%m%d').dt.date
@@ -294,6 +301,7 @@ class GTFS:
                     zip_file.open(filepaths["calendar_dates.txt"]),
                     dtype={"service_id": str, "date": str, "exception_type": int},
                     skipinitialspace=True,
+                    optional=True,
                 )
                 if calendar_dates.shape[0] == 0:
                     calendar_dates = None
@@ -315,6 +323,7 @@ class GTFS:
                         "transfer_duration": "Int64",
                     },
                     skipinitialspace=True,
+                    optional=True,
                 )
             else:
                 fare_attributes = None
@@ -330,6 +339,7 @@ class GTFS:
                         "contains_id": str,
                     },
                     skipinitialspace=True,
+                    optional=True,
                 )
             else:
                 fare_rules = None
@@ -345,6 +355,7 @@ class GTFS:
                         "shape_dist_traveled": float,
                     },
                     skipinitialspace=True,
+                    optional=True,
                 )
             else:
                 shapes = None
@@ -360,6 +371,7 @@ class GTFS:
                         "exact_times": int,
                     },
                     skipinitialspace=True,
+                    optional=True,
                 )
                 frequencies["start_time"] = pd.to_timedelta(frequencies["start_time"])
                 frequencies["end_time"] = pd.to_timedelta(frequencies["end_time"])
@@ -376,6 +388,7 @@ class GTFS:
                         "min_transfer_time": "Int64",
                     },
                     skipinitialspace=True,
+                    optional=True,
                 )
             else:
                 transfers = None
@@ -398,6 +411,7 @@ class GTFS:
                         "reverse_signposted_as": str,
                     },
                     skipinitialspace=True,
+                    optional=True,
                 )
             else:
                 pathways = None
@@ -407,6 +421,7 @@ class GTFS:
                     zip_file.open(filepaths["levels.txt"]),
                     dtype={"level_id": str, "level_index": float, "level_name": str},
                     skipinitialspace=True,
+                    optional=True,
                 )
             else:
                 levels = None
@@ -424,6 +439,7 @@ class GTFS:
                         "field_value": str,
                     },
                     skipinitialspace=True,
+                    optional=True,
                 )
                 feed_info = self._load_clean_feed(
                     zip_file.open(filepaths["feed_info.txt"]),
@@ -439,6 +455,7 @@ class GTFS:
                         "feed_contact_url": str,
                     },
                     skipinitialspace=True,
+                    optional=True,
                 )
             elif filepaths["feed_info.txt"] in zip_file.namelist():
                 feed_info = self._load_clean_feed(
@@ -455,6 +472,7 @@ class GTFS:
                         "feed_contact_url": str,
                     },
                     skipinitialspace=True,
+                    optional=True,
                 )
                 translations = None
             else:
@@ -471,6 +489,7 @@ class GTFS:
                         "trip_id": str,
                     },
                     skipinitialspace=True,
+                    optional=True,
                 )
             else:
                 attributions = None
