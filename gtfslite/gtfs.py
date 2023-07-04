@@ -367,7 +367,7 @@ class GTFS:
                         "trip_id": str,
                         "start_time": str,
                         "end_time": str,
-                        "headway_secs": "Int64",
+                        "headway_secs": int,
                         "exact_times": "Int64",
                     },
                     skipinitialspace=True,
