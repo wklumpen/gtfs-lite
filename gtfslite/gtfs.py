@@ -186,7 +186,6 @@ class GTFS:
                 filepaths[req] = None
             for file in zip_file.namelist():
                 for req in REQUIRED_FILES + OPTIONAL_FILES:
-                    print(req, file, )
                     if req == os.path.basename(file):
                         filepaths[req] = file
 
