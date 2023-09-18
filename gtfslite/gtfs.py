@@ -1154,3 +1154,70 @@ class GTFS:
         unique_trips = stop_trips.trip_id.unique()
 
         return self.trips[self.trips.trip_id.isin(unique_trips)]
+
+    def write_zip(self, filepath, include_optional=True):
+        # Start with the required files
+        self.agency.to_csv(
+            filepath, mode="w", compression={"method": "zip", "archive_name": "agency.txt"}, index=False
+        )
+        self.stops.to_csv(filepath, mode="a", compression={"method": "zip", "archive_name": "stops.txt"}, index=False)
+        self.routes.to_csv(
+            filepath, mode="a", compression={"method": "zip", "archive_name": "routes.txt"}, index=False
+        )
+        self.trips.to_csv(filepath, mode="a", compression={"method": "zip", "archive_name": "trips.txt"}, index=False)
+        self.stop_times.to_csv(
+            filepath, mode="a", compression={"method": "zip", "archive_name": "stop_times.txt"}, index=False
+        )
+        if self.calendar is not None:
+            self.calendar.to_csv(
+                filepath, mode="a", compression={"method": "zip", "archive_name": "calendar.txt"}, index=False
+            )
+        if self.calendar_dates is not None:
+            self.calendar_dates.to_csv(
+                filepath, mode="a", compression={"method": "zip", "archive_name": "calendar_dates.txt"}, index=False
+            )
+
+        if include_optional is True:
+            if self.fare_attributes is not None:
+                self.fare_attributes.to_csv(
+                    filepath,
+                    mode="a",
+                    compression={"method": "zip", "archive_name": "fare_attributes.txt"},
+                    index=False,
+                )
+            if self.fare_rules is not None:
+                self.fare_rules.to_csv(
+                    filepath, mode="a", compression={"method": "zip", "archive_name": "fare_rules.txt"}, index=False
+                )
+            if self.shapes is not None:
+                self.shapes.to_csv(
+                    filepath, mode="a", compression={"method": "zip", "archive_name": "shapes.txt"}, index=False
+                )
+            if self.frequencies is not None:
+                self.frequencies.to_csv(
+                    filepath, mode="a", compression={"method": "zip", "archive_name": "frequencies.txt"}, index=False
+                )
+            if self.transfers is not None:
+                self.transfers.to_csv(
+                    filepath, mode="a", compression={"method": "zip", "archive_name": "transfers.txt"}, index=False
+                )
+            if self.pathways is not None:
+                self.pathways.to_csv(
+                    filepath, mode="a", compression={"method": "zip", "archive_name": "pathways.txt"}, index=False
+                )
+            if self.levels is not None:
+                self.levels.to_csv(
+                    filepath, mode="a", compression={"method": "zip", "archive_name": "levels.txt"}, index=False
+                )
+            if self.attributions is not None:
+                self.attributions.to_csv(
+                    filepath, mode="a", compression={"method": "zip", "archive_name": "attributions.txt"}, index=False
+                )
+            if self.translations is not None:
+                self.translations.to_csv(
+                    filepath, mode="a", compression={"method": "zip", "archive_name": "translations.txt"}, index=False
+                )
+            if self.feed_info is not None:
+                self.feed_info.to_csv(
+                    filepath, mode="a", compression={"method": "zip", "archive_name": "feed_info.txt"}, index=False
+                )
