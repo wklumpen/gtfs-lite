@@ -1156,6 +1156,15 @@ class GTFS:
         return self.trips[self.trips.trip_id.isin(unique_trips)]
 
     def write_zip(self, filepath, include_optional=True):
+        """Write the current GTFS into a zipfile.
+
+        Parameters
+        ----------
+        filepath : str
+            The filepath to write the zip to (should be a .zip extension)
+        include_optional : bool, optional
+            Whether or not to include files marked optional by the GTFS spec, by default True
+        """
         # Start with the required files
         self.agency.to_csv(
             filepath, mode="w", compression={"method": "zip", "archive_name": "agency.txt"}, index=False
