@@ -1155,6 +1155,77 @@ class GTFS:
 
         return self.trips[self.trips.trip_id.isin(unique_trips)]
 
+    def delete_routes(self, route_ids: list[str], clean_stops=False):
+        """Delete a route with associated trips, stops, shapes, and other data
+
+        This method removes the provided routes from the GTFS by removing all 
+        reference to specific route ids and the trips that the route runs.
+
+        Parameters
+        ----------
+        route_ids : list[str]
+            A list of routes to remove. A single route_id can also be provided
+        clean_stops : bool, optional
+            Whether or not to remove stops that are no longer served by the GTFS, by default False
+        """
+        # If just one is passed we make it a list
+        if isinstance(route_ids, str):
+            route_ids = list(route_ids)
+
+        # First, we get the trips
+        rm_trips = self.trips[self.trips["route_id"].isin(route_ids)]
+        rm_trip_ids = rm_trips["trip_id"].tolist()
+
+        # Get the shapes if they exist
+        rm_shape_ids = None
+        if self.shapes is not None:
+            if "shape_id" in self.trips.columns:
+                rm_shape_ids = self.trips[self.trips["trip_id"].isin(route_ids)]["shape_id"].tolist()
+
+        # Remove the shapes
+        if rm_shape_ids is not None:
+            self.shapes = self.shapes[~self.shapes["shape_id"].isin(rm_shape_ids)]
+
+        # Remove the stop times
+        self.stop_times = self.stop_times[~self.stop_times["trip_id"].isin(rm_trip_ids)]
+
+        # Remove from fare rules
+        if self.fare_rules is not None:
+            self.fare_rules = self.fare_rules[~self.fare_rules["route_id"].isin(route_ids)]
+
+        # Remove from frequencies
+        if self.frequencies is not None:
+            self.frequencies = self.frequencies[~self.frequencies["trip_id"].isin(rm_trip_ids)]
+
+        # Remove from transfer
+        if self.transfers is not None:
+            if "from_route_id" in self.transfers.columns:
+                self.transfers = self.transfers[~self.transfers["from_route_id"].isin(route_ids)]
+            if "to_route_id" in self.transfers.columns:
+                self.transfers = self.transfers[~self.transfers["to_route_id"].isin(route_ids)]
+            if "from_trip_id" in self.transfers.columns:
+                self.transfers = self.transfers[~self.transfers["from_trip_id"].isin(rm_trip_ids)]
+            if "to_trip_id" in self.transfers.columns:
+                self.transfers = self.transfers[~self.transfers["to_trip_id"].isin(rm_trip_ids)]
+
+        # Remove from attributions
+        if self.attributions is not None:
+            if "route_id" in self.attributions.columns:
+                self.attributions = self.attributions[~self.attributions["route_id"].isin(route_ids)]
+            if "trip_id" in self.attributions.columns:
+                self.attributions = self.attributions[~self.attributions["trip_id"].isin(rm_trip_ids)]
+
+        if clean_stops == True:
+            # Now remove stops that have no visits anymore
+            orphaned_stops = self.stops[~self.stops["stop_id"].isin(self.stop_times["stop_id"])]["stop_id"].tolist()
+            self.stops = self.stops[~self.stops["stop_id"].isin(orphaned_stops)]
+
+        # Remove from trips
+        self.trips = self.trips[~self.trips["trip_id"].isin(rm_trip_ids)]
+
+        # Remove from routes
+        self.routes = self.routes[~self.routes["route_id"].isin(route_ids)]
+
     def write_zip(self, filepath, include_optional=True):
         """Write the current GTFS into a zipfile.
 
