@@ -2,6 +2,7 @@ import calendar
 import datetime
 import json
 import math
+import os
 from zipfile import ZipFile
 
 import pandas as pd
@@ -152,7 +153,7 @@ class GTFS:
         # Set the analysis date as "date unaware"
         self.date = None
 
-    def _load_clean_feed(filepath,dtype=None,parse_dates=False,skipinitialspace=True,optional=False):
+    def _load_clean_feed(filepath, dtype=None, parse_dates=False, skipinitialspace=True, optional=False):
         try:
             df = pd.read_csv(
                 filepath,
@@ -167,7 +168,7 @@ class GTFS:
                 return None
             else:
                 raise
-    
+
     @classmethod
     def load_zip(self, filepath):
         """Creates a :class:`GTFS` object from a zipfile containing the
@@ -185,7 +186,8 @@ class GTFS:
                 filepaths[req] = None
             for file in zip_file.namelist():
                 for req in REQUIRED_FILES + OPTIONAL_FILES:
-                    if req in file:
+                    print(req, file, )
+                    if req == os.path.basename(file):
                         filepaths[req] = file
 
             # Create pandas objects of the entire feed
@@ -290,8 +292,8 @@ class GTFS:
                     skipinitialspace=True,
                     optional=True,
                 )
-                calendar["start_date"] = pd.to_datetime(calendar["start_date"], format='%Y%m%d').dt.date
-                calendar["end_date"] = pd.to_datetime(calendar["end_date"], format='%Y%m%d').dt.date
+                calendar["start_date"] = pd.to_datetime(calendar["start_date"], format="%Y%m%d").dt.date
+                calendar["end_date"] = pd.to_datetime(calendar["end_date"], format="%Y%m%d").dt.date
 
             else:
                 calendar = None
@@ -306,7 +308,7 @@ class GTFS:
                 if calendar_dates.shape[0] == 0:
                     calendar_dates = None
                 else:
-                    calendar_dates["date"] = pd.to_datetime(calendar_dates["date"], format='%Y%m%d').dt.date
+                    calendar_dates["date"] = pd.to_datetime(calendar_dates["date"], format="%Y%m%d").dt.date
             else:
                 calendar_dates = None
 
