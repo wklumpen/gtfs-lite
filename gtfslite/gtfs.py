@@ -384,8 +384,6 @@ class GTFS:
                     skipinitialspace=True,
                     optional=True,
                 )
-                frequencies["start_time"] = pd.to_timedelta(frequencies["start_time"])
-                frequencies["end_time"] = pd.to_timedelta(frequencies["end_time"])
             else:
                 frequencies = None
 
@@ -596,9 +594,9 @@ class GTFS:
             A dataframe of trips which are run on the provided date.
         """
 
-        if not self.valid_date(date):
-            raise DateNotValidException
-            # TODO: Move this to a decorator
+        # if not self.valid_date(date):
+        #     raise DateNotValidException
+        # TODO: Move this to a decorator
 
         dayname = date.strftime("%A").lower()
 
@@ -778,33 +776,74 @@ class GTFS:
             The date falls outside of the feed's span.
         """
 
-        if not self.valid_date(date):
-            raise DateNotValidException(f"Date falls outside of feed span: {date}")
-
         trips = self.date_trips(date)
 
         # Grab all the stop_times
-        stop_times = self.stop_times[
-            self.stop_times.trip_id.isin(trips.trip_id)
-            & (self.stop_times.arrival_time >= start_time)
-            & (self.stop_times.arrival_time <= end_time)
-        ]
+        stop_times = self.stop_times[self.stop_times.trip_id.isin(trips.trip_id)].copy()
 
+        if start_time is not None:
+            stop_times = stop_times[stop_times[time_field] >= start_time]
+        if end_time is not None:
+            stop_times = stop_times[stop_times[time_field] <= end_time]
+
+        # stop_times[time_field] = pd.to_datetime(stop_times[time_field])
+        stop_times.dropna(subset=[time_field], inplace=True)
+        stop_times["seconds_since_midnight"] = (
+            (stop_times[time_field].str.split(":").str[0].astype(int) * 3600)
+            + (stop_times[time_field].str.split(":").str[1].astype(int) * 60)
+            + (stop_times[time_field].str.split(":").str[2].astype(int))
+        )
         grouped = (
-            stop_times[["trip_id", "arrival_time"]]
+            stop_times[["trip_id", "seconds_since_midnight"]]
             .groupby("trip_id", as_index=False)
-            .agg({"arrival_time": ["max", "min"]})
+            .agg({"seconds_since_midnight": ["max", "min"]})
         )
         grouped.columns = ["trip_id", "max", "min"]
-        grouped.dropna()
-        max_split = grouped["max"].str.split(":", expand=True).astype(int)
-        min_split = grouped["min"].str.split(":", expand=True).astype(int)
-        grouped["diff"] = (
-            (max_split[0] - min_split[0])
-            + (max_split[1] - min_split[1]) / 60
-            + (max_split[2] - min_split[2]) / 3600
-        )
-        return grouped["diff"].sum()
+        grouped.dropna(inplace=True)
+        grouped["diff"] = grouped["max"] - grouped["min"]
+        grouped["multiplier"] = 1
+        if self.frequencies is not None:
+            # Get the number of trips in the frequencies
+            frequencies = self.frequencies.copy()
+            frequencies.start_time = (
+                (frequencies.start_time.str.split(":").str[0].astype(int) * 3600)
+                + (frequencies.start_time.str.split(":").str[1].astype(int) * 60)
+                + (frequencies.start_time.str.split(":").str[2].astype(int))
+            )
+            frequencies.end_time = (
+                (frequencies.end_time.str.split(":").str[0].astype(int) * 3600)
+                + (frequencies.end_time.str.split(":").str[1].astype(int) * 60)
+                + (frequencies.end_time.str.split(":").str[2].astype(int))
+            )
+            if start_time is not None:
+                frequencies["_start_time"] = (
+                    int(start_time.split(":")[0]) * 3600
+                    + int(start_time.split(":")[1]) * 60
+                    + int(start_time.split(":")[2])
+                )
+                frequencies.start_time = frequencies[["start_time", "_start_time"]].min(
+                    axis=1
+                )
+            if end_time is not None:
+                frequencies["_end_time"] = (
+                    int(end_time.split(":")[0]) * 3600
+                    + int(end_time.split(":")[1]) * 60
+                    + int(end_time.split(":")[2])
+                )
+                frequencies.end_time = frequencies[["end_time", "_end_time"]].min(
+                    axis=1
+                )
+            frequencies["total_seconds"] = frequencies.end_time - frequencies.start_time
+            frequencies["freq_multiplier"] = (
+                frequencies["total_seconds"] / frequencies.headway_secs
+            ).astype(int)
+
+            grouped = pd.merge(grouped, frequencies, on="trip_id", how="left").fillna(0)
+            grouped["multiplier"] = grouped[["multiplier", "freq_multiplier"]].max(
+                axis=1
+            )
+        grouped["diff"] = grouped["diff"] * grouped["multiplier"]
+        return grouped["diff"].sum() / 3600
 
     def stop_summary(
         self, stop_id: str, start_time: str = None, end_time: str = None
