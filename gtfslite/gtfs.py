@@ -295,12 +295,6 @@ class GTFS:
                     skipinitialspace=True,
                     optional=True,
                 )
-                calendar["start_date"] = pd.to_datetime(
-                    calendar["start_date"], format="%Y%m%d"
-                ).dt.date
-                calendar["end_date"] = pd.to_datetime(
-                    calendar["end_date"], format="%Y%m%d"
-                ).dt.date
 
             else:
                 calendar = None
@@ -314,10 +308,6 @@ class GTFS:
                 )
                 if calendar_dates.shape[0] == 0:
                     calendar_dates = None
-                else:
-                    calendar_dates["date"] = pd.to_datetime(
-                        calendar_dates["date"], format="%Y%m%d"
-                    ).dt.date
             else:
                 calendar_dates = None
 
