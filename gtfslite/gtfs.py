@@ -136,9 +136,7 @@ class GTFS:
         self.calendar_dates = calendar_dates
 
         if self.calendar is None and self.calendar_dates is None:
-            raise FeedNotValidException(
-                "One of calendar or calendar_dates is required."
-            )
+            raise FeedNotValidException("One of calendar or calendar_dates is required.")
 
         # Optional Files
         self.fare_attributes = fare_attributes
@@ -155,9 +153,7 @@ class GTFS:
         # Set the analysis date as "date unaware"
         self.date = None
 
-    def _load_clean_feed(
-        filepath, dtype=None, parse_dates=False, skipinitialspace=True, optional=False
-    ):
+    def _load_clean_feed(filepath, dtype=None, parse_dates=False, skipinitialspace=True, optional=False):
         try:
             df = pd.read_csv(
                 filepath,
@@ -166,6 +162,8 @@ class GTFS:
                 skipinitialspace=skipinitialspace,
             )
             df.columns = df.columns.str.strip()
+            if df.empty:
+                return None
             return df
         except pd.errors.EmptyDataError:
             if optional:
@@ -306,8 +304,6 @@ class GTFS:
                     skipinitialspace=True,
                     optional=True,
                 )
-                if calendar_dates.shape[0] == 0:
-                    calendar_dates = None
             else:
                 calendar_dates = None
 
@@ -535,24 +531,34 @@ class GTFS:
         summary["total_routes"] = self.routes.shape[0]
         summary["total_trips"] = self.trips.shape[0]
         summary["total_stops_made"] = self.stop_times.shape[0]
+        first_dates = []
+        last_dates = []
         if self.calendar is not None:
-            summary["first_date"] = self.calendar.start_date.min()
-            summary["last_date"] = self.calendar.end_date.max()
-        else:
-            summary["first_date"] = self.calendar_dates.date.min()
-            summary["last_date"] = self.calendar_dates.date.max()
+            first_dates.append(self.calendar.start_date.min())
+            last_dates.append(self.calendar.end_date.max())
+        if self.calendar_dates is not None:
+            first_dates.append(self.calendar_dates.date.min())
+            last_dates.append(self.calendar_dates.date.max())
+
+        summary["first_date"] = max(first_dates)
+        summary["last_date"] = max(last_dates)
+
         if self.shapes is not None:
             summary["total_shapes"] = self.shapes.shape[0]
 
         return summary
 
     def valid_date(self, date_to_check: datetime.date):
-        """Checks whether the provided date falls within the feed's date range
+        """Checks whether the provided date falls within the feed's date range.
+
+        Note that this does not check whether any trips run on a given date,
+        only whether or not the calendar and calendar dates files span or
+        include the provided date in their service.
 
         Parameters
         ----------
-        date : `datetime.date` or `datetime.datetime`
-            A date or datetime object to be validated against the feed
+        date : `datetime.date`
+            A date or object to be validated against the feed
 
         Returns
         -------
@@ -564,10 +570,24 @@ class GTFS:
 
         first_date = summary.first_date
         last_date = summary.last_date
-        if first_date > date_to_check or last_date < date_to_check:
-            return False
-        else:
-            return True
+
+        # First we check the calendar dates to see if it falls within that
+        if self.calendar is not None:
+            first_date = datetime.datetime.strptime(self.calendar.start_date.min(), "%Y%m%d").date()
+            last_date = datetime.datetime.strptime(self.calendar.end_date.max(), "%Y%m%d").date()
+            if first_date <= date_to_check and last_date >= date_to_check:
+                return True
+
+        # Now we check specifically to see if the provided date appears in calendar dates
+        if self.calendar_dates is not None:
+            valid_dates = self.calendar_dates[
+                (self.calendar_dates.date == date_to_check.strftime("%Y%m%d"))
+                & (self.calendar_dates.exception_type == 1)
+            ]
+            if valid_dates.shape[0] > 0:
+                return True
+
+        return False
 
     def date_trips(self, date: datetime.date) -> pd.DataFrame:
         """Finds all the trips that occur on a specified day. This method
@@ -584,38 +604,37 @@ class GTFS:
             A dataframe of trips which are run on the provided date.
         """
 
-        # if not self.valid_date(date):
-        #     raise DateNotValidException
-        # TODO: Move this to a decorator
-
         dayname = date.strftime("%A").lower()
 
         if self.calendar is not None:
+            # Need a copy so we can apply dates
+            calendar = self.calendar.copy()
+            calendar["start_date"] = pd.to_datetime(calendar["start_date"]).dt.date
+            calendar["end_date"] = pd.to_datetime(calendar["end_date"]).dt.date
             # Get all the service_ids for the desired day of the week
-            service_ids = self.calendar[
-                (self.calendar[dayname] == 1)
-                & (self.calendar.start_date <= date)
-                & (self.calendar.end_date >= date)
+            service_ids = calendar[
+                (calendar[dayname] == 1) & (calendar.start_date <= date) & (calendar.end_date >= date)
             ].service_id.tolist()
             if self.calendar_dates is not None:
                 # Add service ids in the calendar_dates
+                calendar_dates = self.calendar_dates.copy()
+                calendar_dates["date"] = pd.to_datetime(calendar_dates["date"]).dt.date
                 service_ids.extend(
-                    self.calendar_dates[
-                        (self.calendar_dates.date == date)
-                        & (self.calendar_dates.exception_type == 1)
+                    calendar_dates[
+                        (calendar_dates.date == date) & (calendar_dates.exception_type == 1)
                     ].service_id.tolist()
                 )
                 # Remove service ids from the calendar dates
                 remove_service_ids = self.calendar_dates[
-                    (self.calendar_dates.date == date)
-                    & (self.calendar_dates.exception_type == 2)
+                    (calendar_dates.date == date) & (calendar_dates.exception_type == 2)
                 ].service_id.tolist()
 
                 service_ids = [i for i in service_ids if i not in remove_service_ids]
         else:
-            service_ids = self.calendar_dates[
-                (self.calendar_dates.date == date)
-                & (self.calendar_dates.exception_type == 1)
+            calendar_dates = self.calendar_dates.copy()
+            calendar_dates["date"] = pd.to_datetime(calendar_dates["date"]).dt.date
+            service_ids = calendar_dates[
+                (calendar_dates.date == date) & (calendar_dates.exception_type == 1)
             ].service_id.tolist()
         return self.trips[self.trips.service_id.isin(service_ids)]
 
@@ -669,11 +688,7 @@ class GTFS:
             int(max_arr.split(":")[0])
             + int(max_arr.split(":")[1]) / 60.0
             + int(max_arr.split(":")[2]) / 3600.0
-            - (
-                int(min_dep.split(":")[0])
-                + int(min_dep.split(":")[1]) / 60.0
-                + int(min_dep.split(":")[2]) / 3600.0
-            )
+            - (int(min_dep.split(":")[0]) + int(min_dep.split(":")[1]) / 60.0 + int(min_dep.split(":")[2]) / 3600.0)
         )
         summary["average_headway"] = 60 * route_headway / visits
         return summary
@@ -693,40 +708,25 @@ class GTFS:
             trips = trips[trips.direction_id == 0]
         stop_times = self.stop_times[self.stop_times.trip_id.isin(trips.trip_id)]
         stop_times = pd.merge(stop_times, trips, on="trip_id", how="left")
-        route_trips = (
-            trips[["route_id", "trip_id"]].groupby("route_id", as_index=False).count()
-        )
+        route_trips = trips[["route_id", "trip_id"]].groupby("route_id", as_index=False).count()
         route_trips["trips"] = route_trips.trip_id
-        first_departures = (
-            stop_times[["route_id", "departure_time"]]
-            .groupby("route_id", as_index=False)
-            .min()
-        )
-        last_arrivals = (
-            stop_times[["route_id", "arrival_time"]]
-            .groupby("route_id", as_index=False)
-            .max()
-        )
+        first_departures = stop_times[["route_id", "departure_time"]].groupby("route_id", as_index=False).min()
+        last_arrivals = stop_times[["route_id", "arrival_time"]].groupby("route_id", as_index=False).max()
         summary = pd.merge(route_trips, first_departures, on=["route_id"])
         summary = pd.merge(summary, last_arrivals, on=["route_id"])
         summary["service_time"] = (
             summary.arrival_time.str.split(":", -1, expand=True)[0].astype(int)
             + summary.arrival_time.str.split(":", -1, expand=True)[1].astype(int) / 60.0
-            + summary.arrival_time.str.split(":", -1, expand=True)[2].astype(int)
-            / 3600.0
+            + summary.arrival_time.str.split(":", -1, expand=True)[2].astype(int) / 3600.0
         ) - (
             summary.departure_time.str.split(":", -1, expand=True)[0].astype(int)
-            + summary.departure_time.str.split(":", -1, expand=True)[1].astype(int)
-            / 60.0
-            + summary.departure_time.str.split(":", -1, expand=True)[2].astype(int)
-            / 3600.0
+            + summary.departure_time.str.split(":", -1, expand=True)[1].astype(int) / 60.0
+            + summary.departure_time.str.split(":", -1, expand=True)[2].astype(int) / 3600.0
         )
         summary["average_headway"] = 60 * summary.service_time / summary.trips
         summary["last_arrival"] = summary.arrival_time
         summary["first_departure"] = summary.departure_time
-        summary = summary[
-            ["route_id", "trips", "first_departure", "last_arrival", "average_headway"]
-        ]
+        summary = summary[["route_id", "trips", "first_departure", "last_arrival", "average_headway"]]
         summary = pd.merge(self.routes, summary, on="route_id", how="inner")
         return summary
 
@@ -811,33 +811,21 @@ class GTFS:
                     + int(start_time.split(":")[1]) * 60
                     + int(start_time.split(":")[2])
                 )
-                frequencies.start_time = frequencies[["start_time", "_start_time"]].min(
-                    axis=1
-                )
+                frequencies.start_time = frequencies[["start_time", "_start_time"]].max(axis=1)
             if end_time is not None:
                 frequencies["_end_time"] = (
-                    int(end_time.split(":")[0]) * 3600
-                    + int(end_time.split(":")[1]) * 60
-                    + int(end_time.split(":")[2])
+                    int(end_time.split(":")[0]) * 3600 + int(end_time.split(":")[1]) * 60 + int(end_time.split(":")[2])
                 )
-                frequencies.end_time = frequencies[["end_time", "_end_time"]].min(
-                    axis=1
-                )
+                frequencies.end_time = frequencies[["end_time", "_end_time"]].min(axis=1)
             frequencies["total_seconds"] = frequencies.end_time - frequencies.start_time
-            frequencies["freq_multiplier"] = (
-                frequencies["total_seconds"] / frequencies.headway_secs
-            ).astype(int)
+            frequencies["freq_multiplier"] = (frequencies["total_seconds"] / frequencies.headway_secs).astype(int)
 
             grouped = pd.merge(grouped, frequencies, on="trip_id", how="left").fillna(0)
-            grouped["multiplier"] = grouped[["multiplier", "freq_multiplier"]].max(
-                axis=1
-            )
+            grouped["multiplier"] = grouped[["multiplier", "freq_multiplier"]].max(axis=1)
         grouped["diff"] = grouped["diff"] * grouped["multiplier"]
         return grouped["diff"].sum() / 3600
 
-    def stop_summary(
-        self, stop_id: str, start_time: str = None, end_time: str = None
-    ) -> pd.Series:
+    def stop_summary(self, stop_id: str, start_time: str = None, end_time: str = None) -> pd.Series:
         """Assemble a series of attributes summarizing a stop on a particular
         day. The following columns are returned:
 
@@ -858,8 +846,7 @@ class GTFS:
         date = self.date
         trips = self.date_trips(date)
         stop_times = self.stop_times[
-            self.stop_times.trip_id.isin(trips.trip_id)
-            & (self.stop_times.stop_id == stop_id)
+            self.stop_times.trip_id.isin(trips.trip_id) & (self.stop_times.stop_id == stop_id)
         ]
 
         summary = self.stops[self.stops.stop_id == stop_id].iloc[0]
@@ -916,8 +903,7 @@ class GTFS:
 
         stop_id = str(stop_id)
         stop_times = self.stop_times[
-            self.stop_times.trip_id.isin(self.date_trips(date).trip_id)
-            & (self.stop_times.stop_id == stop_id)
+            self.stop_times.trip_id.isin(self.date_trips(date).trip_id) & (self.stop_times.stop_id == stop_id)
         ].copy()
         # Filter by start time and end time if needed
         if start_time != None:
@@ -967,22 +953,15 @@ class GTFS:
                 ].iterrows():
                     # We'll need the number of a given days of the week in that range to multiply the calendar.
                     week = {}
-                    for i in range(
-                        ((end_date + datetime.timedelta(days=1)) - start_date).days
-                    ):
-                        day = calendar.day_name[
-                            (start_date + datetime.timedelta(days=i + 1)).weekday()
-                        ].lower()
+                    for i in range(((end_date + datetime.timedelta(days=1)) - start_date).days):
+                        day = calendar.day_name[(start_date + datetime.timedelta(days=i + 1)).weekday()].lower()
                         week[day] = week[day] + 1 if day in week else 1
 
                     # Get trips with that service id and add them to the total, only if that day is in there.
                     if dow in week.keys():
                         dist[dow] = (
                             dist[dow]
-                            + week[dow]
-                            * self.trips[
-                                self.trips.service_id == service.service_id
-                            ].trip_id.count()
+                            + week[dow] * self.trips[self.trips.service_id == service.service_id].trip_id.count()
                         )
 
         # Now check exceptions to add and remove
@@ -990,8 +969,7 @@ class GTFS:
             # Start by going through all the calendar dates within the date range
             # cd = self.calendar_dates.copy()
             for index, cd in self.calendar_dates[
-                (self.calendar_dates["date"].dt.date >= start_date)
-                & (self.calendar_dates["date"].dt.date <= end_date)
+                (self.calendar_dates["date"].dt.date >= start_date) & (self.calendar_dates["date"].dt.date <= end_date)
             ].iterrows():
                 if cd["exception_type"] == 1:
                     dist[days[cd["date"].dayofweek]] += self.trips[
@@ -1026,23 +1004,17 @@ class GTFS:
         if format == "geojson":
             with open(path_to_shape) as f:
                 features = json.load(f)["features"]
-                boundary = GeometryCollection(
-                    [shape(feature["geometry"]).buffer(0) for feature in features]
-                )
+                boundary = GeometryCollection([shape(feature["geometry"]).buffer(0) for feature in features])
                 routes = []
                 counts = []
                 for idx, route in self.routes.iterrows():
                     # Get all the stops on trips for that route.
                     stops = self.stop_times[
-                        self.stop_times.trip_id.isin(
-                            self.trips[self.trips.route_id == route.route_id].trip_id
-                        )
+                        self.stop_times.trip_id.isin(self.trips[self.trips.route_id == route.route_id].trip_id)
                     ].stop_id.unique()
                     # NOTE: buffer(0) is a trick for fixing scenarios where polygons have overlapping coordinates
                     count = 0
-                    for idx, stop in self.stops[
-                        self.stops.stop_id.isin(stops)
-                    ].iterrows():
+                    for idx, stop in self.stops[self.stops.stop_id.isin(stops)].iterrows():
                         if Point(stop.stop_lon, stop.stop_lat).within(boundary):
                             count += 1
                     routes.append(route.route_id)
@@ -1100,9 +1072,9 @@ class GTFS:
         stop_times = self.stop_times[self.stop_times.trip_id.isin(trips.trip_id)].copy()
 
         # Use a numerical timestamp for filtering
-        stop_times["timestamp"] = 60 * stop_times[time_field].str.split(":").str[
-            0
-        ].astype(int) + stop_times[time_field].str.split(":").str[1].astype(int)
+        stop_times["timestamp"] = 60 * stop_times[time_field].str.split(":").str[0].astype(int) + stop_times[
+            time_field
+        ].str.split(":").str[1].astype(int)
 
         # Let's get the start_times of all trips
         trip_start_times = (
@@ -1113,15 +1085,9 @@ class GTFS:
 
         # Filter out our slice
         if start_time != None:
-            start_time_int = 60 * int(start_time.split(":")[0]) + int(
-                start_time.split(":")[1]
-            )
+            start_time_int = 60 * int(start_time.split(":")[0]) + int(start_time.split(":")[1])
             stop_times = stop_times[
-                stop_times.trip_id.isin(
-                    trip_start_times[
-                        trip_start_times.timestamp >= start_time_int
-                    ].trip_id
-                )
+                stop_times.trip_id.isin(trip_start_times[trip_start_times.timestamp >= start_time_int].trip_id)
             ]
 
         if end_time != None:
@@ -1131,22 +1097,14 @@ class GTFS:
                 .sort_values(["trip_id", "stop_sequence"], ascending=False)
                 .drop_duplicates("trip_id")
             )
-            end_time_int = 60 * int(end_time.split(":")[0]) + int(
-                end_time.split(":")[1]
-            )
+            end_time_int = 60 * int(end_time.split(":")[0]) + int(end_time.split(":")[1])
             stop_times = stop_times[
-                stop_times.trip_id.isin(
-                    trip_end_times[trip_end_times.timestamp <= end_time_int].trip_id
-                )
+                stop_times.trip_id.isin(trip_end_times[trip_end_times.timestamp <= end_time_int].trip_id)
             ]
 
         # Now get the trips we're working with
-        trip_starts = trip_start_times[
-            trip_start_times.trip_id.isin(stop_times.trip_id.unique())
-        ]
-        trip_starts = pd.merge(
-            trip_starts, self.trips[["trip_id", "route_id"]], on="trip_id"
-        )
+        trip_starts = trip_start_times[trip_start_times.trip_id.isin(stop_times.trip_id.unique())]
+        trip_starts = pd.merge(trip_starts, self.trips[["trip_id", "route_id"]], on="trip_id")
 
         # Set up a basis for the matrix slices
         mx_start = trip_starts["timestamp"].min().tolist()
@@ -1177,41 +1135,30 @@ class GTFS:
             slice_end_str = f"{hours:02}:{minutes:02}"
             # Now we get the trips that start within our slice
             in_slice = trip_starts[
-                (trip_starts.timestamp >= slice_start_int)
-                & (trip_starts.timestamp < slice_end_int)
+                (trip_starts.timestamp >= slice_start_int) & (trip_starts.timestamp < slice_end_int)
             ]
-            slice_group = (
-                in_slice[["route_id", "trip_id"]]
-                .groupby("route_id", as_index=False)
-                .count()
-            )
-            slice_group["frequency"] = (
-                slice_group["trip_id"] * (60.0 / interval)
-            ).astype(int)
-            final = pd.merge(
-                template_df, slice_group, on="route_id", how="left"
-            ).fillna(0)
+            slice_group = in_slice[["route_id", "trip_id"]].groupby("route_id", as_index=False).count()
+            slice_group["frequency"] = (slice_group["trip_id"] * (60.0 / interval)).astype(int)
+            final = pd.merge(template_df, slice_group, on="route_id", how="left").fillna(0)
             final["frequency"] = final["frequency"].astype(int)
             final["trips"] = final["trip_id"].astype(int)
             final["bin_start"] = slice_start_str
             final["bin_end"] = slice_end_str
-            slices.append(
-                final[["route_id", "bin_start", "bin_end", "trips", "frequency"]]
-            )
+            slices.append(final[["route_id", "bin_start", "bin_end", "trips", "frequency"]])
 
         # Assemble final matrix
         mx = pd.concat(slices, axis="index")
         return mx.reset_index(drop=True)
 
-    def unique_trips_at_stops(
+    def unique_trip_count_at_stops(
         self,
         stop_ids: list,
         date: datetime.date,
         start_time: str = None,
         end_time: str = None,
         time_field: str = "arrival_time",
-    ) -> pd.DataFrame:
-        """Get a set of unique trips that visit a given set of stops
+    ) -> int:
+        """Get a count of unique trips that visit a given set of stops
 
         This function returns a subset of the trips table which include trips
         that stop at _any_ of the stops provided, within provided times.
@@ -1224,47 +1171,84 @@ class GTFS:
             The service day to check
         start_time : str, optional
             A string representation (HH:MM:SS) of the number of hours since
-            midnight on the analysis date. Can be greater than 24:00:00.
-            A None value will consider all trips from the start of the
-            service day, by default None
+            midnight on the analysis date. Can be greater than 24:00:00. A None
+            value will consider all trips from the start of the service day, by
+            default None
         end_time : str, optional
             A string representation (HH:MM:SS) of the number of hours since
-            midnight on the analysis date. Can be greater than 24:00:00.
-            A None value will consider all trips through the end of the
-            service day, by default None
+            midnight on the analysis date. Can be greater than 24:00:00. A None
+            value will consider all trips through the end of the service day, by
+            default None
         time_field : str, optional
-            The name of the time column in `stop_times` to consider, either 'arrival_time' or
-            'departure_time'. By default 'arrival_time'
+            The name of the time column in `stop_times` to consider, either
+            'arrival_time' or 'departure_time'. By default 'arrival_time'
+
+        Returns
+        -------
+        int
+            An integer specifying the total number of unique trips that visit
+            the supplied set of stops.
 
         Notes
         -----
             Not all GTFS datasets include arrival and/or departure times for
-            every stop. In cases where times are only set at time points, and
-            no interpolation is provided, this function will not work.
+            every stop. In cases where times are only set at time points, and no
+            interpolation is provided, this function will not work.
         """
 
         # Start by filtering all stop_trips by the given dateslice
         trips = self.date_trips(date)
 
         stop_ids = [str(s) for s in stop_ids]
-
-        # Now let's grab the stop_trips
+        # First, we account for the stop_time scheduled trips
         stop_trips = self.stop_times[
-            (self.stop_times.trip_id.isin(trips.trip_id))
-            & (self.stop_times.stop_id.isin(stop_ids))
-        ]
+            (self.stop_times.trip_id.isin(trips.trip_id)) & (self.stop_times.stop_id.isin(stop_ids))
+        ].copy()
 
         # Filter by stop times as needed
         if start_time is not None:
-            stop_trips = stop_trips[self.stop_times[time_field] >= start_time]
+            stop_trips = stop_trips[stop_trips[time_field] >= start_time]
 
         if end_time is not None:
-            stop_trips = stop_trips[self.stop_times[time_field] <= end_time]
+            stop_trips = stop_trips[stop_trips[time_field] <= end_time]
 
-        # We've got the stop times, so let's grab the unique trips
-        unique_trips = stop_trips.trip_id.unique()
+        # We can now build a list showing the number of trips
+        stop_trips = stop_trips[["trip_id"]]
+        stop_trips["trip_count"] = 1
+        # Now that we have that, we can move on to the headways
+        if self.frequencies is not None:
+            frequencies = self.frequencies.copy()
+            frequencies.start_time = (
+                (frequencies.start_time.str.split(":").str[0].astype(int) * 3600)
+                + (frequencies.start_time.str.split(":").str[1].astype(int) * 60)
+                + (frequencies.start_time.str.split(":").str[2].astype(int))
+            )
+            frequencies.end_time = (
+                (frequencies.end_time.str.split(":").str[0].astype(int) * 3600)
+                + (frequencies.end_time.str.split(":").str[1].astype(int) * 60)
+                + (frequencies.end_time.str.split(":").str[2].astype(int))
+            )
+            if start_time is not None:
+                frequencies["_start_time"] = (
+                    int(start_time.split(":")[0]) * 3600
+                    + int(start_time.split(":")[1]) * 60
+                    + int(start_time.split(":")[2])
+                )
+                frequencies.start_time = frequencies[["start_time", "_start_time"]].max(axis=1)
+            if end_time is not None:
+                frequencies["_end_time"] = (
+                    int(end_time.split(":")[0]) * 3600 + int(end_time.split(":")[1]) * 60 + int(end_time.split(":")[2])
+                )
+                frequencies.end_time = frequencies[["end_time", "_end_time"]].min(axis=1)
+            frequencies["total_seconds"] = frequencies.end_time - frequencies.start_time
+            frequencies["frequency_multiplier"] = (frequencies["total_seconds"] / frequencies.headway_secs).astype(int)
 
-        return self.trips[self.trips.trip_id.isin(unique_trips)]
+            stop_trips = pd.merge(stop_trips, frequencies, how="inner", on="trip_id")
+            stop_trips["trip_count"] = stop_trips[["trip_count", "frequency_multiplier"]].max(axis=1)
+            stop_trips = stop_trips[["trip_id", "trip_count"]]
+
+        unique_trips = stop_trips.drop_duplicates(subset=["trip_id"])
+        return unique_trips.shape[0]
 
     def delete_routes(self, route_ids: list[str], clean_stops=False):
         """Delete a route with associated trips, stops, shapes, and other data
@@ -1291,9 +1275,7 @@ class GTFS:
         rm_shape_ids = None
         if self.shapes is not None:
             if "shape_id" in self.trips.columns:
-                rm_shape_ids = self.trips[self.trips["trip_id"].isin(route_ids)][
-                    "shape_id"
-                ].tolist()
+                rm_shape_ids = self.trips[self.trips["trip_id"].isin(route_ids)]["shape_id"].tolist()
 
         # Remove the shapes
         if rm_shape_ids is not None:
@@ -1304,51 +1286,33 @@ class GTFS:
 
         # Remove from fare rules
         if self.fare_rules is not None:
-            self.fare_rules = self.fare_rules[
-                ~self.fare_rules["route_id"].isin(route_ids)
-            ]
+            self.fare_rules = self.fare_rules[~self.fare_rules["route_id"].isin(route_ids)]
 
         # Remove from frequencies
         if self.frequencies is not None:
-            self.frequencies = self.frequencies[
-                ~self.frequencies["trip_id"].isin(rm_trip_ids)
-            ]
+            self.frequencies = self.frequencies[~self.frequencies["trip_id"].isin(rm_trip_ids)]
 
         # Remove from transfer
         if self.transfers is not None:
             if "from_route_id" in self.transfers.columns:
-                self.transfers = self.transfers[
-                    ~self.transfers["from_route_id"].isin(route_ids)
-                ]
+                self.transfers = self.transfers[~self.transfers["from_route_id"].isin(route_ids)]
             if "to_route_id" in self.transfers.columns:
-                self.transfers = self.transfers[
-                    ~self.transfers["to_route_id"].isin(route_ids)
-                ]
+                self.transfers = self.transfers[~self.transfers["to_route_id"].isin(route_ids)]
             if "from_trip_id" in self.transfers.columns:
-                self.transfers = self.transfers[
-                    ~self.transfers["from_trip_id"].isin(rm_trip_ids)
-                ]
+                self.transfers = self.transfers[~self.transfers["from_trip_id"].isin(rm_trip_ids)]
             if "to_trip_id" in self.transfers.columns:
-                self.transfers = self.transfers[
-                    ~self.transfers["to_trip_id"].isin(rm_trip_ids)
-                ]
+                self.transfers = self.transfers[~self.transfers["to_trip_id"].isin(rm_trip_ids)]
 
         # Remove from attributions
         if self.attributions is not None:
             if "route_id" in self.attributions.columns:
-                self.attributions = self.attributions[
-                    ~self.attributions["route_id"].isin(route_ids)
-                ]
+                self.attributions = self.attributions[~self.attributions["route_id"].isin(route_ids)]
             if "trip_id" in self.attributions.columns:
-                self.attributions = self.attributions[
-                    ~self.attributions["trip_id"].isin(rm_trip_ids)
-                ]
+                self.attributions = self.attributions[~self.attributions["trip_id"].isin(rm_trip_ids)]
 
         if clean_stops == True:
             # Now remove stops that have no visits anymore
-            orphaned_stops = self.stops[
-                ~self.stops["stop_id"].isin(self.stop_times["stop_id"])
-            ]["stop_id"].tolist()
+            orphaned_stops = self.stops[~self.stops["stop_id"].isin(self.stop_times["stop_id"])]["stop_id"].tolist()
             self.stops = self.stops[~self.stops["stop_id"].isin(orphaned_stops)]
 
         # Remove from trips
