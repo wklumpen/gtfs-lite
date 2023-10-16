@@ -153,17 +153,34 @@ class GTFS:
         # Set the analysis date as "date unaware"
         self.date = None
 
-    def _load_clean_feed(filepath, dtype=None, parse_dates=False, skipinitialspace=True, optional=False):
+    @staticmethod
+    def _load_clean_feed(filepath, optional=False, **pandas_kwargs):
+        print(pandas_kwargs)
+        """Load a feed cleanly by stripping column names.
+
+        Loads a feed. If the feed is empty (produces an empty dataframe) and the
+        item is optional, a None is returned, otherwise an error is raised.
+
+        Keyword arguments can be passd also to make parsing easier.
+
+        Parameters
+        ----------
+        filepath : str
+            path to the file
+
+        Returns
+        -------
+        pd.DataFrame or None
+            A dataframe that is loaded.
+        """
         try:
-            df = pd.read_csv(
-                filepath,
-                dtype=dtype,
-                parse_dates=parse_dates,
-                skipinitialspace=skipinitialspace,
-            )
+            df = pd.read_csv(filepath, **pandas_kwargs)
             df.columns = df.columns.str.strip()
             if df.empty:
-                return None
+                if optional:
+                    return None
+                else:
+                    raise pd.errors.EmptyDataError("This file is empty")
             return df
         except pd.errors.EmptyDataError:
             if optional:
@@ -172,14 +189,21 @@ class GTFS:
                 raise
 
     @classmethod
-    def load_zip(self, filepath):
-        """Creates a :class:`GTFS` object from a zipfile containing the
-        appropriate data.
+    def load_zip(self, filepath, **pandas_kwargs):
+        """Creates a GTFS object based on a provided zipfolder.
 
-        :param filepath: The filepath of the zipped GTFS feed.
-        :type filepath: str
+        For parsing feeds with different encodings, you can pass any Pandas
+        read_csv keyword arguments along.
 
-        :return: A :class:`GTFS` object with loaded and validated data.
+        Parameters
+        ----------
+        filepath : str
+            The path to the zipfile
+
+        Returns
+        -------
+        GTFS
+            A GTFS object with loaded data.
         """
         with ZipFile(filepath, "r") as zip_file:
             # Deal with nested files
@@ -205,6 +229,7 @@ class GTFS:
                     "agency_email": str,
                 },
                 skipinitialspace=True,
+                **pandas_kwargs,
             )
             stops = self._load_clean_feed(
                 zip_file.open(filepaths["stops.txt"]),
@@ -225,6 +250,7 @@ class GTFS:
                     "platform_code": str,
                 },
                 skipinitialspace=True,
+                **pandas_kwargs,
             )
             routes = self._load_clean_feed(
                 zip_file.open(filepaths["routes.txt"]),
@@ -241,6 +267,7 @@ class GTFS:
                     "route_short_order": int,
                 },
                 skipinitialspace=True,
+                **pandas_kwargs,
             )
             trips = self._load_clean_feed(
                 zip_file.open(filepaths["trips.txt"]),
@@ -257,6 +284,7 @@ class GTFS:
                     "bikes_allowed": "Int64",
                 },
                 skipinitialspace=True,
+                **pandas_kwargs,
             )
             stop_times = self._load_clean_feed(
                 zip_file.open(filepaths["stop_times.txt"]),
@@ -273,6 +301,7 @@ class GTFS:
                     "timepoint": "Int64",
                 },
                 skipinitialspace=True,
+                **pandas_kwargs,
             )
 
             if filepaths["calendar.txt"] in zip_file.namelist():
@@ -292,6 +321,7 @@ class GTFS:
                     },
                     skipinitialspace=True,
                     optional=True,
+                    **pandas_kwargs,
                 )
 
             else:
@@ -303,6 +333,7 @@ class GTFS:
                     dtype={"service_id": str, "date": str, "exception_type": int},
                     skipinitialspace=True,
                     optional=True,
+                    **pandas_kwargs,
                 )
             else:
                 calendar_dates = None
@@ -321,6 +352,7 @@ class GTFS:
                     },
                     skipinitialspace=True,
                     optional=True,
+                    **pandas_kwargs,
                 )
             else:
                 fare_attributes = None
@@ -337,6 +369,7 @@ class GTFS:
                     },
                     skipinitialspace=True,
                     optional=True,
+                    **pandas_kwargs,
                 )
             else:
                 fare_rules = None
@@ -353,6 +386,7 @@ class GTFS:
                     },
                     skipinitialspace=True,
                     optional=True,
+                    **pandas_kwargs,
                 )
             else:
                 shapes = None
@@ -369,6 +403,7 @@ class GTFS:
                     },
                     skipinitialspace=True,
                     optional=True,
+                    **pandas_kwargs,
                 )
             else:
                 frequencies = None
@@ -384,6 +419,7 @@ class GTFS:
                     },
                     skipinitialspace=True,
                     optional=True,
+                    **pandas_kwargs,
                 )
             else:
                 transfers = None
@@ -407,6 +443,7 @@ class GTFS:
                     },
                     skipinitialspace=True,
                     optional=True,
+                    **pandas_kwargs,
                 )
             else:
                 pathways = None
@@ -451,6 +488,7 @@ class GTFS:
                     },
                     skipinitialspace=True,
                     optional=True,
+                    **pandas_kwargs,
                 )
             elif filepaths["feed_info.txt"] in zip_file.namelist():
                 feed_info = self._load_clean_feed(
@@ -468,6 +506,7 @@ class GTFS:
                     },
                     skipinitialspace=True,
                     optional=True,
+                    **pandas_kwargs,
                 )
                 translations = None
             else:
@@ -485,6 +524,7 @@ class GTFS:
                     },
                     skipinitialspace=True,
                     optional=True,
+                    **pandas_kwargs,
                 )
             else:
                 attributions = None
@@ -509,7 +549,7 @@ class GTFS:
             attributions=attributions,
         )
 
-    def summary(self):
+    def summary(self) -> pd.Series:
         """Assemble a series of attributes summarizing the GTFS feed with the
         following columns:
 
@@ -522,7 +562,10 @@ class GTFS:
         * *last_date*: (`datetime.date`) the last date the feed is valid for
         * *total_shapes* (optional): the total number of shapes.
 
-        :returns: A :py:mod:`pandas.Series` containing the relevant data.
+        Returns
+        -------
+        pandas.Series
+            A Pandas series containing the required data.
         """
 
         summary = pd.Series(dtype=str)
@@ -981,47 +1024,6 @@ class GTFS:
                     ].trip_id.count()
 
         return dist
-
-    def route_stops_inside(self, path_to_shape, format="geojson"):
-        """Count the number of stops a given route has inside a geographical
-        boundary or shape.
-
-        :param path_to_shape: A path to the file containing the shapes. This
-            file must contain unprojected geospatial information in WGS:84 format.
-        :type path_to_shape: str
-        :param format: The format of the geospatial file. **Note:** currently,
-            only the default `geojson` is supported.
-        :type format: str, optional
-        :return: A :py:mod:`pandas.DataFrame` object listing each route and
-            the number of stops served by that route that fall within the
-            provided boundary.
-        """
-
-        from shapely.geometry import Point, shape, GeometryCollection
-
-        count = 0
-        # For starters, let's load a bounding box and check how many stops are in the point
-        if format == "geojson":
-            with open(path_to_shape) as f:
-                features = json.load(f)["features"]
-                boundary = GeometryCollection([shape(feature["geometry"]).buffer(0) for feature in features])
-                routes = []
-                counts = []
-                for idx, route in self.routes.iterrows():
-                    # Get all the stops on trips for that route.
-                    stops = self.stop_times[
-                        self.stop_times.trip_id.isin(self.trips[self.trips.route_id == route.route_id].trip_id)
-                    ].stop_id.unique()
-                    # NOTE: buffer(0) is a trick for fixing scenarios where polygons have overlapping coordinates
-                    count = 0
-                    for idx, stop in self.stops[self.stops.stop_id.isin(stops)].iterrows():
-                        if Point(stop.stop_lon, stop.stop_lat).within(boundary):
-                            count += 1
-                    routes.append(route.route_id)
-                    counts.append(count)
-
-        stop_count = pd.DataFrame(counts, index=routes)
-        return stop_count
 
     def route_frequency_matrix(
         self,
