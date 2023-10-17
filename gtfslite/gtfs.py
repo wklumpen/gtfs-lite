@@ -155,7 +155,6 @@ class GTFS:
 
     @staticmethod
     def _load_clean_feed(filepath, optional=False, **pandas_kwargs):
-        print(pandas_kwargs)
         """Load a feed cleanly by stripping column names.
 
         Loads a feed. If the feed is empty (produces an empty dataframe) and the
