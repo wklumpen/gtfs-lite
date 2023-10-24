@@ -522,7 +522,6 @@ class GTFS:
                         "trip_id": str,
                     },
                     skipinitialspace=True,
-                    optional=True,
                     **pandas_kwargs,
                 )
             else:
