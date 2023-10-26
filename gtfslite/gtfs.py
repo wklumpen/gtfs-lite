@@ -581,7 +581,7 @@ class GTFS:
             first_dates.append(self.calendar_dates.date.min())
             last_dates.append(self.calendar_dates.date.max())
 
-        summary["first_date"] = max(first_dates)
+        summary["first_date"] = min(first_dates)
         summary["last_date"] = max(last_dates)
 
         if self.shapes is not None:
