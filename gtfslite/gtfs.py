@@ -3,6 +3,7 @@ import datetime
 import json
 import math
 import os
+import warnings
 from zipfile import ZipFile
 
 import pandas as pd
@@ -154,7 +155,7 @@ class GTFS:
         self.date = None
 
     @staticmethod
-    def _load_clean_feed(filepath, optional=False, **pandas_kwargs):
+    def _load_clean_feed(filepath, optional=False, dtype=None, **pandas_kwargs):
         """Load a feed cleanly by stripping column names.
 
         Loads a feed. If the feed is empty (produces an empty dataframe) and the
@@ -173,13 +174,21 @@ class GTFS:
             A dataframe that is loaded.
         """
         try:
-            df = pd.read_csv(filepath, **pandas_kwargs)
+            df = pd.read_csv(filepath, dtype=dtype, **pandas_kwargs)
             df.columns = df.columns.str.strip()
             if df.empty:
                 if optional:
                     return None
                 else:
                     raise pd.errors.EmptyDataError("This file is empty")
+            # Strip all column whitespace on load
+            if dtype is not None:
+                for c in df.columns:
+                    try:
+                        if dtype[c] is str:
+                            df[c] = df[c].str.strip()
+                    except KeyError:
+                        pass
             return df
         except pd.errors.EmptyDataError:
             if optional:
