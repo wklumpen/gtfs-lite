@@ -6,6 +6,7 @@ import os
 import warnings
 from zipfile import ZipFile
 
+import numpy as np
 import pandas as pd
 
 from .exceptions import (
@@ -13,9 +14,6 @@ from .exceptions import (
     DateNotValidException,
     FeedNotValidException,
 )
-
-
-
 
 
 class GTFS:
@@ -176,7 +174,7 @@ class GTFS:
             df = pd.read_csv(filepath, dtype=dtype, **pandas_kwargs)
             df.columns = df.columns.str.strip()
 
-            # Deal with column names not having 
+            # Deal with column names not having the right types
             for (
                 k,
                 v,
@@ -188,13 +186,14 @@ class GTFS:
                 if optional:
                     return None
                 else:
-                    raise pd.errors.EmptyDataError("This file is empty")
+                    raise pd.errors.EmptyDataError("This required file is empty")
             # Strip all column whitespace on load
             if dtype is not None:
                 for c in df.columns:
                     try:
                         if dtype[c] is str:
                             df[c] = df[c].str.strip()
+                            df[c] = df[c].str.replace("nan", "")
                     except KeyError:
                         pass
             return df
@@ -207,7 +206,9 @@ class GTFS:
             print(f"UnicodeDecodeError loading {filepath}: {unicode_error}")
 
     @classmethod
-    def load_zip(self, filepath, ignore_optional_files: None|str=None, **pandas_kwargs):
+    def load_zip(
+        self, filepath, ignore_optional_files: None | str = None, **pandas_kwargs
+    ):
         """Creates a GTFS object based on a provided zipfolder.
 
         For parsing feeds with different encodings, you can pass any Pandas
@@ -229,8 +230,10 @@ class GTFS:
         """
 
         if ignore_optional_files not in [None, "all", "keep_shapes"]:
-            raise ValueError("Ignore optional files must be None, 'all', 'or 'keep_shapes'")
-        
+            raise ValueError(
+                "Ignore optional files must be None, 'all', 'or 'keep_shapes'"
+            )
+
         if ignore_optional_files == None:
             to_ignore = []
         if ignore_optional_files == "all":
@@ -371,7 +374,10 @@ class GTFS:
             else:
                 calendar_dates = None
 
-            if filepaths["fare_attributes.txt"] in zip_file.namelist() and "fare_attributes.txt" not in to_ignore:
+            if (
+                filepaths["fare_attributes.txt"] in zip_file.namelist()
+                and "fare_attributes.txt" not in to_ignore
+            ):
                 fare_attributes = self._load_clean_feed(
                     zip_file.open(filepaths["fare_attributes.txt"]),
                     dtype={
@@ -390,7 +396,10 @@ class GTFS:
             else:
                 fare_attributes = None
 
-            if filepaths["fare_rules.txt"] in zip_file.namelist() and "fare_rules.txt" not in to_ignore:
+            if (
+                filepaths["fare_rules.txt"] in zip_file.namelist()
+                and "fare_rules.txt" not in to_ignore
+            ):
                 fare_rules = self._load_clean_feed(
                     zip_file.open(filepaths["fare_rules.txt"]),
                     dtype={
@@ -407,7 +416,10 @@ class GTFS:
             else:
                 fare_rules = None
 
-            if filepaths["shapes.txt"] in zip_file.namelist() and "shapes.txt" not in to_ignore:
+            if (
+                filepaths["shapes.txt"] in zip_file.namelist()
+                and "shapes.txt" not in to_ignore
+            ):
                 shapes = self._load_clean_feed(
                     zip_file.open(filepaths["shapes.txt"]),
                     dtype={
@@ -424,7 +436,10 @@ class GTFS:
             else:
                 shapes = None
 
-            if filepaths["frequencies.txt"] in zip_file.namelist() and "frequencies.txt" not in to_ignore:
+            if (
+                filepaths["frequencies.txt"] in zip_file.namelist()
+                and "frequencies.txt" not in to_ignore
+            ):
                 frequencies = self._load_clean_feed(
                     zip_file.open(filepaths["frequencies.txt"]),
                     dtype={
@@ -441,7 +456,10 @@ class GTFS:
             else:
                 frequencies = None
 
-            if filepaths["transfers.txt"] in zip_file.namelist() and "transfers.txt" not in to_ignore:
+            if (
+                filepaths["transfers.txt"] in zip_file.namelist()
+                and "transfers.txt" not in to_ignore
+            ):
                 transfers = self._load_clean_feed(
                     zip_file.open(filepaths["transfers.txt"]),
                     dtype={
@@ -457,7 +475,10 @@ class GTFS:
             else:
                 transfers = None
 
-            if filepaths["pathways.txt"] in zip_file.namelist() and "pathways.txt" not in to_ignore:
+            if (
+                filepaths["pathways.txt"] in zip_file.namelist()
+                and "pathways.txt" not in to_ignore
+            ):
                 pathways = self._load_clean_feed(
                     zip_file.open(filepaths["pathways.txt"]),
                     dtype={
@@ -481,7 +502,10 @@ class GTFS:
             else:
                 pathways = None
 
-            if filepaths["levels.txt"] in zip_file.namelist() and "levels.txt" not in to_ignore:
+            if (
+                filepaths["levels.txt"] in zip_file.namelist()
+                and "levels.txt" not in to_ignore
+            ):
                 levels = self._load_clean_feed(
                     zip_file.open(filepaths["levels.txt"]),
                     dtype={"level_id": str, "level_index": float, "level_name": str},
@@ -491,7 +515,10 @@ class GTFS:
             else:
                 levels = None
 
-            if filepaths["translations.txt"] in zip_file.namelist() and "translations.txt" not in to_ignore:
+            if (
+                filepaths["translations.txt"] in zip_file.namelist()
+                and "translations.txt" not in to_ignore
+            ):
                 translations = self._load_clean_feed(
                     zip_file.open(filepaths["translations.txt"]),
                     dtype={
@@ -523,7 +550,10 @@ class GTFS:
                     optional=True,
                     **pandas_kwargs,
                 )
-            elif filepaths["feed_info.txt"] in zip_file.namelist() and "feed_info.txt" not in to_ignore:
+            elif (
+                filepaths["feed_info.txt"] in zip_file.namelist()
+                and "feed_info.txt" not in to_ignore
+            ):
                 feed_info = self._load_clean_feed(
                     zip_file.open(filepaths["feed_info.txt"]),
                     dtype={
@@ -546,7 +576,10 @@ class GTFS:
                 translations = None
                 feed_info = None
 
-            if filepaths["attributions.txt"] in zip_file.namelist() and "attributions.txt" not in to_ignore:
+            if (
+                filepaths["attributions.txt"] in zip_file.namelist()
+                and "attributions.txt" not in to_ignore
+            ):
                 attributions = pd.read_csv(
                     zip_file.open(filepaths["attributions.txt"]),
                     dtype={
@@ -1315,7 +1348,10 @@ class GTFS:
         ].copy()
 
         #  Now that we have all the trips in the criteria, remove those that don't have time data
-        stop_trips = stop_trips[~stop_trips[time_field].isna()]
+        #  NOTE: This creates a problem since these trips visit certain stops...
+        stop_trips = stop_trips[
+            (~stop_trips[time_field].isna()) & (stop_trips[time_field] != "")
+        ]
 
         # Create a column of seconds since midnight if we need it for filtering
         if start_time is not None or end_time is not None:
