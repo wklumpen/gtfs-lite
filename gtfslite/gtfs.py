@@ -844,15 +844,16 @@ class GTFS:
         summary = pd.merge(route_trips, first_departures, on=["route_id"])
         summary = pd.merge(summary, last_arrivals, on=["route_id"])
         summary["service_time"] = (
-            summary.arrival_time.str.split(":", -1, expand=True)[0].astype(int)
-            + summary.arrival_time.str.split(":", -1, expand=True)[1].astype(int) / 60.0
-            + summary.arrival_time.str.split(":", -1, expand=True)[2].astype(int)
+            summary.arrival_time.str.split(":", n=-1, expand=True)[0].astype(int)
+            + summary.arrival_time.str.split(":", n=-1, expand=True)[1].astype(int)
+            / 60.0
+            + summary.arrival_time.str.split(":", n=-1, expand=True)[2].astype(int)
             / 3600.0
         ) - (
-            summary.departure_time.str.split(":", -1, expand=True)[0].astype(int)
-            + summary.departure_time.str.split(":", -1, expand=True)[1].astype(int)
+            summary.departure_time.str.split(":", n=-1, expand=True)[0].astype(int)
+            + summary.departure_time.str.split(":", n=-1, expand=True)[1].astype(int)
             / 60.0
-            + summary.departure_time.str.split(":", -1, expand=True)[2].astype(int)
+            + summary.departure_time.str.split(":", n=-1, expand=True)[2].astype(int)
             / 3600.0
         )
         summary["average_headway"] = 60 * summary.service_time / summary.trips
