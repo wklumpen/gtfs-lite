@@ -1219,8 +1219,6 @@ class GTFS:
                 )
             ]
 
-        print("After Start Filter:", stop_times.shape[0])
-
         if end_time is not None:
             # We need trip end times for this filter
             trip_end_times = (
@@ -1237,8 +1235,6 @@ class GTFS:
                 )
             ]
 
-        print("After End Filter:", stop_times.shape[0])
-
         # Now get the trips we're working with
         trip_starts = trip_start_times[
             trip_start_times.trip_id.isin(stop_times.trip_id.unique())
@@ -1248,8 +1244,6 @@ class GTFS:
             self.trips[["trip_id", "route_id", "direction_id"]],
             on="trip_id",
         )
-
-        print("Trip starts:", trip_starts.shape[0])
 
         # Set up a basis for the matrix slices
         mx_start = trip_starts["timestamp"].min().tolist()
