@@ -234,7 +234,7 @@ class GTFS:
                 "Ignore optional files must be None, 'all', 'or 'keep_shapes'"
             )
 
-        if ignore_optional_files == None:
+        if ignore_optional_files is None:
             to_ignore = []
         if ignore_optional_files == "all":
             to_ignore = GTFS.OPTIONAL_FILES
@@ -1055,9 +1055,9 @@ class GTFS:
             & (self.stop_times.stop_id == stop_id)
         ].copy()
         # Filter by start time and end time if needed
-        if start_time != None:
+        if start_time is not None:
             stop_times = stop_times[stop_times[time_field] >= start_time]
-        if end_time != None:
+        if end_time is not None:
             stop_times = stop_times[stop_times[time_field] <= end_time]
 
         return stop_times
@@ -1096,7 +1096,7 @@ class GTFS:
             for dow in dist.index:
                 # Get rows where that DOW happens in the date range
                 for idx, service in self.calendar[
-                    (self.calendar[dow] == True)
+                    (self.calendar[dow] is True)
                     & (self.calendar.start_date.dt.date <= start_date)
                     & (self.calendar.end_date.dt.date >= end_date)
                 ].iterrows():
@@ -1200,7 +1200,7 @@ class GTFS:
         )
 
         # Filter out our slice
-        if start_time != None:
+        if start_time is not None:
             start_time_int = 60 * int(start_time.split(":")[0]) + int(
                 start_time.split(":")[1]
             )
@@ -1212,7 +1212,7 @@ class GTFS:
                 )
             ]
 
-        if end_time != None:
+        if end_time is not None:
             # We need trip end times for this filter
             trip_end_times = (
                 stop_times[["trip_id", "stop_sequence", "timestamp", time_field]]
@@ -1507,7 +1507,7 @@ class GTFS:
                     ~self.attributions["trip_id"].isin(rm_trip_ids)
                 ]
 
-        if clean_stops == True:
+        if clean_stops is True:
             # Now remove stops that have no visits anymore
             orphaned_stops = self.stops[
                 ~self.stops["stop_id"].isin(self.stop_times["stop_id"])
