@@ -196,6 +196,9 @@ class GTFS:
                             df[c] = df[c].str.replace("nan", "")
                     except KeyError:
                         pass
+            # Finally, replace all whitespace values with NaN on load
+            with pd.option_context("future.no_silent_downcasting", True):
+                df = df.replace(r"^\s*$", np.nan, regex=True)
             return df
         except pd.errors.EmptyDataError:
             if optional:
@@ -1187,6 +1190,10 @@ class GTFS:
         trips = self.date_trips(date)
         stop_times = self.stop_times[self.stop_times.trip_id.isin(trips.trip_id)].copy()
 
+        # Remove all stop times with an empty time field, which should NOT
+        # include first and last stops.
+        stop_times = stop_times.dropna(subset=[time_field])
+
         # Use a numerical timestamp for filtering
         stop_times["timestamp"] = 60 * stop_times[time_field].str.split(":").str[
             0
@@ -1196,7 +1203,7 @@ class GTFS:
         trip_start_times = (
             stop_times[["trip_id", "stop_sequence", "timestamp", time_field]]
             .sort_values(["trip_id", "stop_sequence"])
-            .drop_duplicates("trip_id")
+            .drop_duplicates(subset=["trip_id"])
         )
 
         # Filter out our slice
@@ -1211,6 +1218,8 @@ class GTFS:
                     ].trip_id
                 )
             ]
+
+        print("After Start Filter:", stop_times.shape[0])
 
         if end_time is not None:
             # We need trip end times for this filter
@@ -1228,13 +1237,19 @@ class GTFS:
                 )
             ]
 
+        print("After End Filter:", stop_times.shape[0])
+
         # Now get the trips we're working with
         trip_starts = trip_start_times[
             trip_start_times.trip_id.isin(stop_times.trip_id.unique())
         ]
         trip_starts = pd.merge(
-            trip_starts, self.trips[["trip_id", "route_id"]], on="trip_id"
+            trip_starts,
+            self.trips[["trip_id", "route_id", "direction_id"]],
+            on="trip_id",
         )
+
+        print("Trip starts:", trip_starts.shape[0])
 
         # Set up a basis for the matrix slices
         mx_start = trip_starts["timestamp"].min().tolist()
@@ -1269,13 +1284,14 @@ class GTFS:
                 & (trip_starts.timestamp < slice_end_int)
             ]
             slice_group = (
-                in_slice[["route_id", "trip_id"]]
-                .groupby("route_id", as_index=False)
+                in_slice[["route_id", "direction_id", "trip_id"]]
+                .groupby(["route_id", "direction_id"], as_index=False)
                 .count()
             )
             slice_group["frequency"] = (
                 slice_group["trip_id"] * (60.0 / interval)
             ).astype(int)
+            slice_group["headway"] = (60.0 / slice_group["frequency"]).round(1)
             final = pd.merge(
                 template_df, slice_group, on="route_id", how="left"
             ).fillna(0)
@@ -1284,7 +1300,17 @@ class GTFS:
             final["bin_start"] = slice_start_str
             final["bin_end"] = slice_end_str
             slices.append(
-                final[["route_id", "bin_start", "bin_end", "trips", "frequency"]]
+                final[
+                    [
+                        "route_id",
+                        "direction_id",
+                        "bin_start",
+                        "bin_end",
+                        "trips",
+                        "frequency",
+                        "headway",
+                    ]
+                ]
             )
 
         # Assemble final matrix
