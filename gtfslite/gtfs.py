@@ -1365,6 +1365,8 @@ class GTFS:
         # Filter by stop times as needed
         if start_time is not None:
             start_time_split = start_time.split(":")
+            if len(start_time_split) == 2:
+                start_time_split.append('00')
             start_time_ssm = (
                 int(start_time_split[0]) * 3600
                 + int(start_time_split[1]) * 60
@@ -1374,6 +1376,8 @@ class GTFS:
 
         if end_time is not None:
             end_time_split = end_time.split(":")
+            if len(end_time_split) == 2:
+                end_time_split.append('00')
             end_time_ssm = (
                 int(end_time_split[0]) * 3600
                 + int(end_time_split[1]) * 60
